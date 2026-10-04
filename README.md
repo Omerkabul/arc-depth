@@ -24,7 +24,27 @@ broken. `npm install && npm start` gives you the same service locally, and
 
 ## Why this exists
 
-On Arc a single token routinely has dozens of pools. Measured on mainnet, the token `AI` had **20 indexed pools**, and the round-trip cost for 5 USDC differed enormously between them:
+How common is this? Measured, not asserted — from an index of **216,101
+Initialize events** covering every v4 pool on Arc.
+
+Across the whole population the answer is boring: the median token has **one**
+pool and 97.1% have exactly one. But most of those are dead launches nobody
+trades, and a token nobody trades has no routing problem. The population that
+matters is the one with volume. Sampling 151 tokens from Arc's pools by 24h
+volume and counting their pools in the index:
+
+| | median pools | one pool | 5 or more | 10 or more |
+|---|---:|---:|---:|---:|
+| **actively traded** (n=151) | **3** | 2.0% | **19.9%** | 19.2% |
+| random control (n=151) | 1 | 96.0% | 1.3% | 0.0% |
+| all tokens (n=195,494) | 1 | 97.1% | 0.7% | 0.2% |
+
+So one in five actively traded Arc tokens has five or more pools — **thirty
+times the base rate**. The routing problem is not everywhere; it is
+concentrated precisely where the volume is.
+
+And where it bites, it bites hard. The token `AI` has 20 indexed pools, and the
+round-trip cost for 5 USDC differs enormously between them:
 
 | pool fee | hook | liquidity | round trip |
 |---:|:---|---:|---:|
@@ -35,7 +55,12 @@ On Arc a single token routinely has dozens of pools. Measured on mainnet, the to
 
 Same token, same block. Route through the first pool and you pay 7.85%. Route through the last and **99% of the position is gone** — with no rug, no honeypot, no malice. Just the wrong pool.
 
-Arc-wide, from a scan of the pool index: **15,616 pools charge 50% or more.** Nothing published on Arc tells a buyer which of a token's pools is the usable one.
+Arc-wide, from the same index: **16,004 pools charge 50% or more** (7.4% of
+all pools), of which 6,280 charge over 90%. A further **4,609 pools use a
+dynamic fee**, where a hook sets the price at swap time — those cannot be
+quoted honestly in advance by anyone, and this tool flags rather than prices
+them. Nothing published on Arc tells a buyer which of a token's pools is the
+usable one.
 
 ### Existing Arc scanners can't answer this, and say so
 
