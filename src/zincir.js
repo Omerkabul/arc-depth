@@ -37,6 +37,19 @@ const ARC = {
   quoter: process.env.ARC_V4_QUOTER || "0x8Dc178eFB8111BB0973Dd9d722ebeFF267c98F94",
   /* quoteExactInputSingle selector. */
   quoterSelector: "0xaa9d21cb",
+  /* PoolKeyRegistry, deployed by this repository. See contracts/.
+   *
+   * Trusting it needs no trust: the contract derives the pool id from the key
+   * rather than accepting a caller-supplied pair, so get(poolId) can only ever
+   * return a key that hashes to that id. A hostile registrant cannot plant a
+   * wrong key for a pool that matters — doing so would require a keccak
+   * collision. That is what makes it safe to read a permissionless registry
+   * and use the answer directly. */
+  registry: process.env.ARC_POOLKEY_REGISTRY || "0x0B3dD19678eba80fFd986B970FE0aeD54E7Ef801",
+  /* get(bytes32). Computed with keccak and checked against the compiled ABI,
+   * not written from memory — the first attempt here had 0x9507d39a, which is
+   * a different function entirely. */
+  registryGetSelector: "0x8eaa6ac0",
   /* Nominal block time, for reporting only. Block lookups DO NOT use it:
    * measured drift reached fourteen hours, so timestamps are resolved by
    * binary search over real blocks instead. */

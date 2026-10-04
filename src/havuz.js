@@ -149,9 +149,56 @@ function rememberKey(poolId, key) {
   }
 }
 
+/* Ask the on-chain registry. One eth_call, no range limits, no rate-limit
+ * exposure worth worrying about, and the answer is shared with everyone else
+ * who has ever looked a pool up — which is the entire point of putting it on
+ * chain instead of in a private cache file.
+ *
+ * The result is used directly without checking the hash locally. That is not
+ * laziness: the contract computes the id FROM the key, so a key it returns for
+ * an id necessarily hashes to that id. Re-deriving it here would be checking
+ * keccak against itself.
+ *
+ * A failure here is never fatal. The registry is a shortcut; the log scan
+ * below remains the ground truth and runs whenever the shortcut misses. */
+async function registryLookup(poolId) {
+  try {
+    const r = await Z.rpcRetry("eth_call", [{
+      to: Z.ARC.registry,
+      data: Z.ARC.registryGetSelector + String(poolId).slice(2)
+    }]);
+    const d = String(r || "").slice(2);
+    if (d.length < 64 * 6) return null;
+    const word = (i) => d.slice(i * 64, (i + 1) * 64);
+    if (BigInt("0x" + word(0)) === 0n) return null;      /* found == false */
+    const toInt24 = (hex) => {
+      const v = BigInt("0x" + hex);
+      return v >= (1n << 23n) ? Number(v - (1n << 24n)) : Number(v);
+    };
+    return {
+      currency0: ("0x" + word(1).slice(24)).toLowerCase(),
+      currency1: ("0x" + word(2).slice(24)).toLowerCase(),
+      fee: Number(BigInt("0x" + word(3))),
+      tickSpacing: toInt24(word(4)),
+      hooks: ("0x" + word(5).slice(24)).toLowerCase()
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
 async function poolKeyOf(pool) {
   const cached = loadKeys()[pool.poolId];
   if (cached) return Object.assign({}, cached, { fromCache: true });
+
+  const zincirden = await registryLookup(pool.poolId);
+  if (zincirden) {
+    /* Written to the local cache too, so a second request for the same pool
+     * costs nothing at all rather than one more call. */
+    rememberKey(pool.poolId, zincirden);
+    return Object.assign({}, zincirden, { fromRegistry: true });
+  }
+
   if (!pool.createdAt) return { error: "pool creation time unknown, cannot narrow the event search" };
   let centre;
   try { centre = await Z.blockForTime(pool.createdAt); }
@@ -286,4 +333,4 @@ async function roundTrip(key, sizeUsdc, blockTag) {
   };
 }
 
-module.exports = { poolsOfToken, poolKeyOf, roundTrip, quoteLeg, encodeQuote, gt };
+module.exports = { poolsOfToken, poolKeyOf, registryLookup, roundTrip, quoteLeg, encodeQuote, gt };
