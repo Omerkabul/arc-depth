@@ -5,9 +5,18 @@
   "main": "src/servis.js",
   "scripts": {
     "start": "node src/servis.js",
-    "check": "node src/kontrol.js"
+    "check": "node src/kontrol.js",
+    "contract:build": "node contracts/derle.js",
+    "contract:check": "node contracts/kontrol.js"
   },
-  "dependencies": { "ethers": "^6.13.0" },
+  "dependencies": {
+    "ethers": "^6.13.0"
+  },
   "license": "MIT",
-  "engines": { "node": ">=18" }
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "solc": "^0.8.26"
+  }
 }

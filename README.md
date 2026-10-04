@@ -102,6 +102,67 @@ curl "http://localhost:8712/sellable?token=0xa39c8e2ceb2a0f9d6e9d059f5e470edfda6
 
 ---
 
+## On-chain: the PoolKey registry
+
+A v4 pool id is `keccak256(abi.encode(PoolKey))`. A hash is one-way, so an id
+alone tells you nothing about the pool it names — not the currencies, the fee,
+the tick spacing, or the hook. The only on-chain record of a key is the
+`Initialize` event emitted once when the pool was created.
+
+That leaves anyone arriving later with an awkward problem, and leaves a
+**contract with no option at all**: the EVM cannot read a past event, so
+on-chain logic holding a poolId is stuck with an opaque 32 bytes.
+
+[`contracts/PoolKeyRegistry.sol`](contracts/PoolKeyRegistry.sol) is a
+permissionless `poolId -> PoolKey` lookup that fixes this. Anyone may submit a
+key; the contract keeps it only if its hash matches the id it claims, so a
+wrong entry is **impossible rather than merely discouraged**. There is no owner,
+no admin function and no upgrade path — nothing in it can be changed by anyone,
+including whoever deploys it.
+
+```solidity
+function idOf(PoolKey calldata key) external pure returns (bytes32);
+function register(PoolKey calldata key) external returns (bytes32 poolId);
+function registerMany(PoolKey[] calldata keys) external returns (uint256 added);
+function get(bytes32 poolId) external view returns (bool found, PoolKey memory key);
+function getMany(bytes32[] calldata ids) external view returns (bool[] memory, PoolKey[] memory);
+function isKnown(bytes32 poolId) external view returns (bool);
+```
+
+`get` returns a `found` flag rather than reverting on an unknown id, because an
+unknown pool is an ordinary answer and a revert would push every on-chain caller
+into a try/catch for the common case. A zeroed key with `found == false` must
+never be read as a real pool whose fields happen to be zero.
+
+### Verification
+
+```bash
+npm run contract:build     # compile with the local solc, no service needed
+npm run contract:check     # run the COMPILED code in Arc's own EVM
+```
+
+The check does not test a belief about `abi.encode`. It places the compiled
+runtime code at a throwaway address using `eth_call`'s state override, calls
+`idOf` on eight real Arc pools, and compares the result to the ids
+`PoolManager` actually assigned — including the 89% and 90% fee tiers, where a
+mis-sized field would show up. All eight match. No transaction is sent and no
+key is needed, and if a node does not support state overrides the check says so
+instead of passing vacuously.
+
+Measured on Arc mainnet: deployment costs **852,805 gas (~0.017 USDC)** and
+registering a key costs **~84,000 gas (~0.0017 USDC)**.
+
+### What the registry deliberately does not do
+
+A registered key proves exactly one thing: these five fields hash to this id.
+It says nothing about whether the pool exists, is initialized, holds liquidity,
+or is safe to trade. Those are pricing questions, they depend on the quoter and
+on a pinned block, and they are answered off-chain by the service above. Keeping
+the two apart is the point — a registry that also made claims about safety would
+be asserting on-chain something it cannot verify on-chain.
+
+---
+
 ## What this does not claim
 
 Honest limits, stated because a measurement tool that overclaims is worse than none:
