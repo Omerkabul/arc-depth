@@ -1,0 +1,68 @@
+{
+  "zaman": "2026-10-04T21:12:00.552Z",
+  "hedefBoyut": 5175,
+  "ornekAdres": "0x9085669ff63deb5a77cff1e344707d2f27c86044",
+  "kodHash": "0xa346645ff528cb398a7fcb7f3787379a6d60fd1faf90153de7b0849a4047e3ad",
+  "adaySecici": 41,
+  "taninan": [
+    {
+      "secici": "0xdc4c90d3",
+      "imza": "poolManager()"
+    },
+    {
+      "secici": "0xdc98354e",
+      "imza": "beforeInitialize(address,(address,address,uint24,int24,address),uint160)"
+    },
+    {
+      "secici": "0xb47b2fb1",
+      "imza": "afterSwap(address,(address,address,uint24,int24,address),(bool,int256,uint160),int256,bytes)"
+    },
+    {
+      "secici": "0x61d027b3",
+      "imza": "treasury()"
+    }
+  ],
+  "taninmayanSayisi": 37,
+  "taninmayan": [
+    "0xbf56b371",
+    "0xd0c93a7c",
+    "0xe88dc357",
+    "0xfc0c546a",
+    "0xfdf262b7",
+    "0xc4084938",
+    "0xc473413a",
+    "0xc56f84cf",
+    "0xc930ba92",
+    "0xcffd129c",
+    "0x6425666b",
+    "0x645acda3",
+    "0x8549d9be",
+    "0x9f12b90f",
+    "0xa6645ee6",
+    "0x089fe6aa",
+    "0x0c6eb359",
+    "0x2c597de9",
+    "0x3cd8045e",
+    "0x3e0dc34e",
+    "0x610a8456",
+    "0x570c1085",
+    "0x179435b3",
+    "0xe524afd1",
+    "0x0b0d9c09",
+    "0x3f94bdf3",
+    "0x1639ec3d",
+    "0xffffffff",
+    "0x682a9065",
+    "0x185d96a1",
+    "0xb4512f43",
+    "0xd92e233d",
+    "0x6e4c1aa7",
+    "0x1e2eaeaf",
+    "0x8960208a",
+    "0x4e487b71",
+    "0x43000818"
+  ],
+  "ustHavuz": 9319,
+  "kuyrukHavuz": 160599,
+  "tahminiKapsam": 158511
+}
