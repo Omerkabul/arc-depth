@@ -104,6 +104,9 @@ curl "http://localhost:8712/sellable?token=0xa39c8e2ceb2a0f9d6e9d059f5e470edfda6
 
 ## On-chain: the PoolKey registry
 
+> **Deployed on Arc mainnet:** [`0x0B3dD19678eba80fFd986B970FE0aeD54E7Ef801`](https://explorer.arc.io/address/0x0B3dD19678eba80fFd986B970FE0aeD54E7Ef801)
+> &nbsp;&nbsp;block 24228647 &middot; 8 pools registered &middot; no owner, no admin, no upgrade path
+
 A v4 pool id is `keccak256(abi.encode(PoolKey))`. A hash is one-way, so an id
 alone tells you nothing about the pool it names — not the currencies, the fee,
 the tick spacing, or the hook. The only on-chain record of a key is the
@@ -149,8 +152,17 @@ mis-sized field would show up. All eight match. No transaction is sent and no
 key is needed, and if a node does not support state overrides the check says so
 instead of passing vacuously.
 
-Measured on Arc mainnet: deployment costs **852,805 gas (~0.017 USDC)** and
-registering a key costs **~84,000 gas (~0.0017 USDC)**.
+Measured on Arc mainnet, from the actual deployment: **844,932 gas
+(0.017 USDC)** to deploy and **665,288 gas (0.013 USDC)** to register the first
+eight keys — about 83,000 gas, or 0.0017 USDC, per key.
+
+Afterwards the code at the address was fetched back and compared byte for byte
+with what was compiled, because a receipt with status 1 only says the
+transaction did not revert; it does not say the chain now holds the code that
+passed the checks. It matched. Every registered key was then read back through
+a separate raw-RPC client instead of the deploy run's own contract handle, and
+an unknown id was confirmed to return `found == false` rather than reverting.
+Eight of eight correct.
 
 ### What the registry deliberately does not do
 
