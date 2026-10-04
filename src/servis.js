@@ -34,6 +34,20 @@ const MAX_SIZE = Number(process.env.MAX_SIZE || 500);
 
 const log = (...a) => console.log("[arc-depth " + new Date().toISOString().slice(11, 19) + "]", ...a);
 
+/* The set of files git tracks, read once from the commit. Using the commit as
+ * the allowlist means anything gitignored (node_modules, data/, .env) is
+ * unreachable by construction rather than by a path rule I might get wrong. */
+let _tracked = null;
+function trackedFiles() {
+  if (_tracked) return _tracked;
+  try {
+    const out = require("child_process").execFileSync("git",
+      ["-C", path.join(__dirname, ".."), "ls-files"], { encoding: "utf8", timeout: 10000 });
+    _tracked = out.split(/\r?\n/).filter(Boolean);
+  } catch (e) { _tracked = []; }
+  return _tracked;
+}
+
 const hits = new Map();
 function rateLimited(ip) {
   const now = Date.now();
@@ -182,6 +196,69 @@ const server = http.createServer(async (req, res) => {
       }).end(page);
     } catch (e) {
       return res.writeHead(500, headers).end(JSON.stringify({ error: "demo page missing" }));
+    }
+  }
+
+  /* ---- PUBLIC SOURCE ----------------------------------------------------
+   * The source is served from the same origin for two reasons.
+   *
+   * First, a measurement tool asks to be trusted, and the only honest basis
+   * for that is being readable. Anyone can check that the round-trip number
+   * comes from two chained quotes at one pinned block and that nothing is
+   * signed or sent.
+   *
+   * Second, it makes the project a genuinely public code repository without
+   * depending on any hosting account. /source lists and serves every tracked
+   * file; the .git directory is served over git's HTTP protocol, so
+   *     git clone <this-origin>/git
+   * works for anyone. No login, no platform, no account.
+   *
+   * Only files git tracks are reachable. node_modules, data/ and .env are
+   * gitignored and therefore invisible here — the allowlist is the commit,
+   * not a path filter I might get wrong. */
+  if (u.pathname === "/source" || u.pathname.startsWith("/source/")) {
+    const rel = decodeURIComponent(u.pathname.replace(/^\/source\/?/, ""));
+    if (!rel) {
+      const files = trackedFiles();
+      const rows = files.map((f) =>
+        '<li><a href="/source/' + encodeURIComponent(f) + '">' + f + "</a></li>").join("\n");
+      return res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(
+        "<!doctype html><meta charset=utf-8><title>arc-depth source</title>" +
+        '<style>body{font:15px/1.6 ui-sans-serif,system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 16px;' +
+        "background:#0f1115;color:#e7eaf0}a{color:#58a6ff}code{background:#171a21;padding:2px 6px;border-radius:4px}" +
+        "@media(prefers-color-scheme:light){body{background:#fff;color:#1b1f26}code{background:#f0f2f5}}</style>" +
+        "<h1>arc-depth source</h1>" +
+        "<p>Every file this service runs. Clone it with:</p>" +
+        "<p><code>git clone " + (req.headers.host ? "https://" + req.headers.host : "") + "/git arc-depth</code></p>" +
+        "<ul>" + rows + "</ul>");
+    }
+    /* Path must be exactly a tracked file. No traversal is possible because
+     * the name has to match the commit listing, not merely look safe. */
+    if (!trackedFiles().includes(rel)) {
+      return res.writeHead(404, headers).end(JSON.stringify({ error: "not a tracked file" }));
+    }
+    try {
+      const body = fs.readFileSync(path.join(__dirname, "..", rel));
+      const ct = /\.html?$/.test(rel) ? "text/plain; charset=utf-8"   /* shown, not rendered */
+        : /\.json$/.test(rel) ? "application/json; charset=utf-8"
+        : "text/plain; charset=utf-8";
+      return res.writeHead(200, { "content-type": ct, "cache-control": "no-store" }).end(body);
+    } catch (e) {
+      return res.writeHead(404, headers).end(JSON.stringify({ error: "unreadable" }));
+    }
+  }
+
+  /* git's HTTP transport: serving .git read-only makes the repo clonable. */
+  if (u.pathname.startsWith("/git/")) {
+    const rel = u.pathname.slice("/git/".length);
+    if (/\.\./.test(rel)) return res.writeHead(400, headers).end(JSON.stringify({ error: "bad path" }));
+    try {
+      const body = fs.readFileSync(path.join(__dirname, "..", ".git", rel));
+      return res.writeHead(200, {
+        "content-type": "application/octet-stream", "cache-control": "no-store"
+      }).end(body);
+    } catch (e) {
+      return res.writeHead(404, headers).end("");
     }
   }
 
