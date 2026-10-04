@@ -6,6 +6,20 @@ A read-only service for [Arc](https://www.arc.io) (Circle's L1, chain id 5042). 
 
 No wallet. No signing. No transactions. No approvals. Every number comes from an `eth_call` quote.
 
+<!-- CANLI:BAS -->
+**Live demo:** https://related-involves-idea-seat.trycloudflare.com
+
+```bash
+curl "https://related-involves-idea-seat.trycloudflare.com/sellable?token=0xa39c8e2ceb2a0f9d6e9d059f5e470edfda691c15&size=5"
+```
+
+_Served through a Cloudflare quick tunnel, which needs no account and costs
+nothing but is handed a new hostname whenever it restarts. If this link is
+unreachable, that is what happened — it is not a claim that the service is
+broken. `npm install && npm start` gives you the same service locally, and
+`/health` on either tells you what it is pointed at._
+<!-- CANLI:SON -->
+
 ---
 
 ## Why this exists
