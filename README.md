@@ -164,6 +164,46 @@ a separate raw-RPC client instead of the deploy run's own contract handle, and
 an unknown id was confirmed to return `found == false` rather than reverting.
 Eight of eight correct.
 
+### Filling it
+
+Eight pools are registered, which is enough to prove the thing works and not
+enough to be useful to a stranger. The path to filling it is measured rather
+than hoped for.
+
+A separate Arc pool index built for this project holds **215,943 complete
+PoolKeys**, recovered from `PoolManager.Initialize` events between blocks
+20,865,060 and 24,246,404. Every one of them was checked locally before being
+treated as usable: a 2,019-key sample was re-hashed and compared against the
+pool id it is filed under, and **2,019 of 2,019 matched**. That check matters
+more than it looks. The registry cannot reject a bad key — it derives the id
+*from* the key, so a wrong key is simply stored under its own wrong id,
+wasting gas and filing a pool that does not exist. Nothing on chain stands
+between a typo in an index and a permanent bad entry, so the verification has
+to happen before the transaction, not after.
+
+Cost, measured on mainnet with `eth_estimateGas` against the live contract:
+
+| batch | gas | cost | per key |
+|---:|---:|---:|---:|
+| 1 | 83,041 | 0.00166 USDC | 0.001661 |
+| 10 | 786,355 | 0.01573 USDC | 0.001573 |
+| 50 | 3,676,492 | 0.07353 USDC | 0.001471 |
+| 100 | 6,761,424 | 0.13523 USDC | 0.001352 |
+| 200 | 13,880,820 | 0.27762 USDC | 0.001388 |
+| 400 | — | reverts | — |
+
+Arc's block gas limit is 16,777,216, so a batch of 400 fails with "gas required
+exceeds" and roughly **200 keys per transaction** is the practical ceiling.
+Past about a hundred the per-key cost stops improving, because the fixed
+21,000-gas transaction overhead has already been amortised away and what
+remains is one cold storage write per key.
+
+At 0.0014 USDC per key, a thousand pools costs about **1.40 USDC** and the full
+index would cost roughly **300 USDC** — which is why filling it is incremental
+and demand-driven rather than a single bulk load. The sensible order is newest
+first: a newborn pool is the case this project exists for, and it is what the
+service is actually asked about.
+
 ### What the registry deliberately does not do
 
 A registered key proves exactly one thing: these five fields hash to this id.
