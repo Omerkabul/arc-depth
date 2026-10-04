@@ -19,11 +19,28 @@ const { AbiCoder } = require("ethers");
 const Z = require("./zincir.js");
 const H = require("./havuz.js");
 
-const line = (ok, label, detail) =>
-  console.log("  " + (ok ? "PASS" : "FAIL") + "  " + label + (detail ? "   " + detail : ""));
+const line = (durum, label, detail) =>
+  console.log("  " + durum + "  " + label + (detail ? "   " + detail : ""));
 
-let failures = 0;
-const check = (ok, label, detail) => { if (!ok) failures++; line(ok, label, detail); };
+let failures = 0, limited = 0;
+
+/* A rate-limited endpoint is reported as LIMIT, not FAIL, and does not set the
+ * exit code. The distinction is not cosmetic: the public Arc RPC throttles, so
+ * anyone running these checks while the service is also running will be
+ * throttled, and calling that a failed check tells them the code is broken when
+ * it is not. The run still says plainly that something went unverified — a
+ * check that was skipped must never read as a check that passed. */
+const check = (ok, label, detail) => { if (!ok) failures++; line(ok ? "PASS" : "FAIL", label, detail); };
+
+const rateLimitHatasi = (e) =>
+  !!(e && (e.rateLimited || e.httpStatus === 429 || /\b(429|503)\b|rate.?limit|too many requests/i.test(String(e.message || e))));
+
+/* For a failure that is already in hand: it decides between FAIL and LIMIT
+ * instead of the caller having to know the difference. */
+const checkE = (e, label, detail) => {
+  if (e && rateLimitHatasi(e)) { limited++; line("LIMIT", label, "rate limited by the RPC, not verified"); return; }
+  failures++; line("FAIL", label, detail);
+};
 
 async function abiCheck() {
   console.log("\n1) ABI encoding matches a reference coder");
@@ -74,7 +91,7 @@ async function liveCheck() {
   const token = process.env.CHECK_TOKEN || "0xa39c8e2ceb2a0f9d6e9d059f5e470edfda691c15";
   let pools;
   try { pools = await H.poolsOfToken(token); }
-  catch (e) { check(false, "pool listing", String(e.message).slice(0, 60)); return; }
+  catch (e) { checkE(e, "pool listing", String(e.message).slice(0, 60)); return; }
   check(pools.length > 0, "pool listing", pools.length + " pools found");
   if (!pools.length) return;
 
@@ -83,8 +100,13 @@ async function liveCheck() {
   const target = withLiquidity[0] || pools[0];
 
   const key = await H.poolKeyOf(target);
-  check(!key.error, "PoolKey recovery", key.error ? key.error : ("fee " + key.fee + ", tickSpacing " + key.tickSpacing + ", hooks " + String(key.hooks).slice(0, 10)));
-  if (key.error) return;
+  if (key.error) {
+    /* poolKeyOf reports its failure as a string rather than throwing, so the
+     * rate-limit test is applied to that string. */
+    checkE({ message: key.error }, "PoolKey recovery", key.error);
+    return;
+  }
+  check(true, "PoolKey recovery", "fee " + key.fee + ", tickSpacing " + key.tickSpacing + ", hooks " + String(key.hooks).slice(0, 10));
 
   const block = await Z.blockNumber();
   const rt = await H.roundTrip(key, 5, block);
@@ -105,6 +127,9 @@ async function liveCheck() {
     console.log("\nunexpected error: " + (e && e.message));
     failures++;
   }
-  console.log("\n" + (failures ? failures + " CHECK(S) FAILED" : "all checks passed"));
+  const kuyruk = limited ? "   (" + limited + " not verified: RPC rate limited)" : "";
+  console.log("\n" + (failures ? failures + " CHECK(S) FAILED" + kuyruk
+    : limited ? "no failures, but " + limited + " check(s) could not be verified because the RPC rate limited us"
+    : "all checks passed"));
   process.exit(failures ? 1 : 0);
 })();

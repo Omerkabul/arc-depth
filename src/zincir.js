@@ -78,7 +78,20 @@ function rpc(method, params, timeoutMs) {
       res.on("end", () => {
         const text = Buffer.concat(parts).toString("utf8");
         if (res.statusCode !== 200) {
-          return reject(Object.assign(new Error("HTTP " + res.statusCode), { httpStatus: res.statusCode }));
+          /* A rate limit is its own class of failure. It says nothing about the
+           * request — the identical call succeeds once the window reopens — so
+           * it must not be reported the way a malformed request is, and it
+           * needs a far longer wait than a dropped connection. The server's own
+           * Retry-After is honoured when it sends one, because guessing against
+           * a published number is how a client earns a longer ban. */
+          const limited = res.statusCode === 429 || res.statusCode === 503;
+          const ra = Number(res.headers["retry-after"]);
+          return reject(Object.assign(new Error("HTTP " + res.statusCode), {
+            httpStatus: res.statusCode,
+            rateLimited: limited,
+            transient: limited,
+            retryAfterMs: Number.isFinite(ra) && ra > 0 ? Math.min(ra * 1000, 60000) : null
+          }));
         }
         let parsed;
         try { parsed = JSON.parse(text); } catch (e) { return reject(new Error("response was not JSON")); }
@@ -100,17 +113,46 @@ function rpc(method, params, timeoutMs) {
   });
 }
 
-/* Retry only what is worth retrying. A permanent error is returned to the
- * caller immediately so it can change the request rather than repeat it. */
+/* Retry only what is worth retrying, and wait for the right reason.
+ *
+ * Three outcomes, three behaviours:
+ *   permanent (-32012, range too large) — returned at once, because the same
+ *     call will fail identically and the caller has to narrow the range;
+ *   rate limited (429/503) — the longest wait, growing exponentially, and more
+ *     attempts than anything else gets, because the request is fine and only
+ *     time fixes it. A short linear backoff here just spends the retries
+ *     inside the same closed window and then reports a failure that was never
+ *     a failure;
+ *   anything else transient (timeout, reset socket) — a short linear backoff.
+ *
+ * The retry budget is deliberately split: a rate limit gets more attempts than the
+ * general budget allows, up to RATE_TRIES, because collapsing it into the general
+ * budget is what made a throttled public endpoint look like broken code. */
+const RATE_TRIES = 6;
 async function rpcRetry(method, params, attempts) {
   const max = attempts || 3;
-  let last = null;
-  for (let i = 0; i < max; i++) {
+  let last = null, rateHits = 0;
+  for (let i = 0; i < max; ) {
     try { return await rpc(method, params); }
     catch (e) {
       last = e;
-      if (e.permanent || i === max - 1) throw e;
-      await new Promise((r) => setTimeout(r, 1200 * (i + 1)));
+      if (e.permanent) throw e;
+
+      if (e.rateLimited) {
+        rateHits++;
+        if (rateHits > RATE_TRIES) throw e;
+        /* 1.5s, 3s, 6s, 12s, 24s, 30s — capped, and overridden by the
+         * server's Retry-After whenever it gives one. A rate-limited attempt
+         * does not consume the general budget, so a throttled window cannot
+         * exhaust the retries meant for network faults. */
+        const bekle = e.retryAfterMs || Math.min(1500 * Math.pow(2, rateHits - 1), 30000);
+        await new Promise((r) => setTimeout(r, bekle));
+        continue;
+      }
+
+      i++;
+      if (i >= max) throw e;
+      await new Promise((r) => setTimeout(r, 1200 * i));
     }
   }
   throw last;

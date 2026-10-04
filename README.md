@@ -111,7 +111,7 @@ Honest limits, stated because a measurement tool that overclaims is worse than n
 - **Dynamic-fee pools are flagged, not priced.** When `fee == 2^23` the hook sets the fee at swap time, so no fixed percentage is honest.
 - **One block only.** Hook behaviour and liquidity can change in the next block. This is a measurement, not a guarantee.
 - **`execution reverted` with no decodable payload is ambiguous.** It may be the pool refusing the swap or the call failing. It is classified conservatively as `UNMEASURED`.
-- **The public Arc RPC is rate limited.** Back-to-back requests will degrade. Serving real traffic needs a dedicated endpoint.
+- **The public Arc RPC is rate limited.** Back-to-back requests will degrade. Rate limiting is backed off and retried rather than reported as a result, and `npm run check` marks a throttled check `LIMIT` rather than `FAIL`, because a closed rate-limit window says nothing about the code. Serving real traffic needs a dedicated endpoint.
 
 ---
 
@@ -121,7 +121,7 @@ Three bugs here failed *silently* — returning plausible numbers instead of err
 
 - **Hand-rolled ABI encoding was wrong twice.** A missing offset word for the dynamic outer tuple, then a further mismatch. Caught only by encoding the same call with a reference coder and comparing byte for byte. Encoding is now delegated to `ethers`; the raw JSON-RPC client is kept, because `JsonRpcProvider` retried network detection forever against a dead endpoint and masked real errors behind `could not coalesce error`.
 - **Timestamp-to-block arithmetic drifted by up to fourteen hours.** A fixed 0.5074 s block time was off by 48,184 blocks at the chain head and 101,173 at block 1M. That would have centred the event window nowhere near the pool, and an empty result is indistinguishable from "no Initialize event". Replaced with binary search over real block timestamps: exact to 0–2 blocks.
-- **Arc returns two different RPC errors that need opposite handling.** `-32012 requested range too large` is permanent — retrying is pointless and the range must be narrowed. Rate limiting is transient and should be backed off. Collapsing them into one class either wastes calls or drops data.
+- **Arc returns two different RPC errors that need opposite handling.** `-32012 requested range too large` is permanent — retrying is pointless and the range must be narrowed. Rate limiting is transient and should be backed off. Collapsing them into one class either wastes calls or drops data. Getting this half right is just as bad: the first version did retry a rate limit, but on the same short linear backoff as a dropped socket, so all three attempts landed inside the same closed window. A clean clone then reported `1 CHECK(S) FAILED` for an endpoint that was merely busy — a tool that overstates its own breakage is as misleading as one that hides it. Rate limits now get their own exponential schedule (1.5s to 30s, capped), honour `Retry-After`, and draw from a separate retry budget so a busy window cannot consume the retries meant for network faults.
 
 ---
 
