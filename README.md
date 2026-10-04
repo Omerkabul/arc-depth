@@ -127,3 +127,20 @@ The cache holds only derived public data (pool id, currencies, fee, tick spacing
 ## License
 
 MIT
+
+---
+
+## Running it publicly
+
+```bash
+npm start                                     # service on :8712, serves the demo at /
+cloudflared tunnel --url http://127.0.0.1:8712   # temporary public URL, no account needed
+```
+
+A `trycloudflare.com` quick tunnel needs no signup and costs nothing, but the
+hostname **changes every time the tunnel restarts**. It is fine for a demo and
+for sharing a link; a stable address needs a named tunnel or ordinary hosting.
+
+What is exposed: two read-only GET endpoints and a static page. No wallet, no
+keys, no write path. Requests are rate limited per IP and the quote size is
+capped, because the public Arc RPC behind it is shared.

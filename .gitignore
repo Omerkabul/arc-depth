@@ -3,3 +3,4 @@ data/
 *.log
 *.tmp
 .env
+bin/
