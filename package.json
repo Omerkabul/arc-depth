@@ -1,0 +1,13 @@
+{
+  "name": "arc-depth",
+  "version": "0.1.0",
+  "description": "Is this Arc token sellable, through which pool, and at what cost? Block-pinned two-leg quotes on Uniswap v4. Read-only.",
+  "main": "src/servis.js",
+  "scripts": {
+    "start": "node src/servis.js",
+    "check": "node src/kontrol.js"
+  },
+  "dependencies": { "ethers": "^6.13.0" },
+  "license": "MIT",
+  "engines": { "node": ">=18" }
+}
