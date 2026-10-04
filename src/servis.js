@@ -20,6 +20,8 @@
  *   - Rate limited per IP, because the public Arc RPC is a shared resource.
  * =========================================================================== */
 const http = require("http");
+const fs = require("fs");
+const path = require("path");
 const Z = require("./zincir.js");
 const H = require("./havuz.js");
 
@@ -167,6 +169,21 @@ const server = http.createServer(async (req, res) => {
   };
   let u;
   try { u = new URL(req.url, "http://localhost"); } catch (e) { return res.writeHead(400, headers).end("{}"); }
+
+  /* The demo page is served by the same process on purpose. One process and
+   * one origin means it works through a tunnel with no CORS setup and no
+   * second host to keep alive — the simplest thing that can be public. */
+  if (u.pathname === "/" || u.pathname === "/index.html") {
+    try {
+      const page = fs.readFileSync(path.join(__dirname, "..", "demo", "index.html"));
+      return res.writeHead(200, {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store"
+      }).end(page);
+    } catch (e) {
+      return res.writeHead(500, headers).end(JSON.stringify({ error: "demo page missing" }));
+    }
+  }
 
   if (u.pathname === "/health") {
     return res.writeHead(200, headers).end(JSON.stringify({

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>arc-depth</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --line:#262b36; --ink:#e7eaf0;
+    --dim:#8b94a7; --good:#3fb950; --bad:#f85149; --warn:#d29922; --accent:#58a6ff;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#f6f7f9; --panel:#fff; --line:#e3e6ea; --ink:#1b1f26;
+      --dim:#5c6572; --good:#1a7f37; --bad:#cf222e; --warn:#9a6700; --accent:#0969da;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1115; --panel:#171a21; --line:#262b36; --ink:#e7eaf0;
+    --dim:#8b94a7; --good:#3fb950; --bad:#f85149; --warn:#d29922; --accent:#58a6ff;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.55 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    padding:0 16px;
+  }
+  .wrap{max-width:860px;margin:0 auto;padding:40px 0 64px}
+  h1{font-size:28px;margin:0 0 6px;letter-spacing:-.02em}
+  .sub{color:var(--dim);margin:0 0 28px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:18px}
+  label{display:block;font-size:13px;color:var(--dim);margin-bottom:6px}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  input{
+    flex:1 1 320px;min-width:0;background:var(--bg);color:var(--ink);
+    border:1px solid var(--line);border-radius:8px;padding:11px 12px;
+    font:14px ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  input.size{flex:0 0 110px}
+  button{
+    background:var(--accent);color:#fff;border:0;border-radius:8px;
+    padding:11px 20px;font-size:14px;font-weight:600;cursor:pointer;
+  }
+  button:disabled{opacity:.55;cursor:default}
+  .verdict{font-size:20px;font-weight:650;margin:0 0 4px}
+  .good{color:var(--good)} .bad{color:var(--bad)} .warn{color:var(--warn)} .dim{color:var(--dim)}
+  .explain{color:var(--dim);font-size:14px;margin:0}
+  .big{display:flex;gap:28px;flex-wrap:wrap;margin:18px 0 0}
+  .big div span{display:block;font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.04em}
+  .big div b{font-size:26px;font-weight:650;font-variant-numeric:tabular-nums}
+  .note{border-left:3px solid var(--warn);padding:10px 14px;background:rgba(210,153,34,.08);border-radius:0 8px 8px 0;font-size:14px;margin:16px 0 0}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13.5px}
+  th,td{text-align:right;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--dim);font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  td.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+  .scroll{overflow-x:auto;margin:0 -20px;padding:0 20px}
+  .limits{font-size:13px;color:var(--dim)}
+  .limits li{margin:5px 0}
+  .pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--dim);margin-left:8px;vertical-align:middle}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>arc-depth</h1>
+  <p class="sub">
+    Which of this Arc token&rsquo;s pools can you actually trade through, and what does a
+    buy-then-sell round trip cost? Read-only &mdash; no wallet, no signing, no transactions.
+  </p>
+
+  <div class="card">
+    <label for="tok">Token address on Arc</label>
+    <div class="row">
+      <input id="tok" spellcheck="false" placeholder="0x…"
+             value="0xa39c8e2ceb2a0f9d6e9d059f5e470edfda691c15">
+      <input id="size" class="size" type="number" min="1" max="500" step="1" value="5" aria-label="Size in USDC">
+      <button id="go">Measure</button>
+    </div>
+    <p class="explain" style="margin-top:10px">
+      Size is in USDC. Both legs are quoted at one pinned block; nothing is sent to the chain.
+    </p>
+  </div>
+
+  <div id="out"></div>
+
+  <div class="card">
+    <strong>What this does not claim</strong>
+    <ul class="limits">
+      <li><b>Unmeasured is not unsafe.</b> A failed quote is reported as such, never as &ldquo;cannot sell&rdquo;.</li>
+      <li><b>Uniswap v4 only.</b> Arc also has v3 pools; the v4 quoter cannot price them.</li>
+      <li><b>Dynamic-fee pools are flagged, not priced</b> &mdash; the hook sets the fee at swap time.</li>
+      <li><b>One block only.</b> Hooks and liquidity can change in the next one.</li>
+      <li>The public Arc RPC is rate limited; rapid repeat requests degrade.</li>
+    </ul>
+  </div>
+
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+const pct = (v) => (v == null ? "&mdash;" : Number(v).toFixed(2) + "%");
+
+function render(d) {
+  const cls = d.sellable === true ? "good" : d.sellable === false ? "bad" : "dim";
+  const title = d.result === "SELLABLE" ? "Sellable"
+    : d.result === "CANNOT_SELL" ? "Could not sell"
+    : d.result === "UNMEASURED" ? "Unmeasured"
+    : d.result === "NO_POOLS_FOUND" ? "No pools indexed"
+    : esc(d.result);
+
+  let h = '<div class="card">';
+  h += '<p class="verdict ' + cls + '">' + title +
+       (d.pinStatus ? '<span class="pill">block ' + esc(d.block) + ' &middot; pin ' + esc(d.pinStatus) + '</span>' : '') +
+       '</p>';
+  h += '<p class="explain">' + esc(d.explanation || "") + '</p>';
+
+  if (d.bestRoundTripPct != null) {
+    h += '<div class="big">';
+    h += '<div><span>cheapest route</span><b class="good">' + pct(d.bestRoundTripPct) + '</b></div>';
+    if (d.worstRoundTripPct != null && d.worstRoundTripPct !== d.bestRoundTripPct)
+      h += '<div><span>worst measured</span><b class="bad">' + pct(d.worstRoundTripPct) + '</b></div>';
+    h += '<div><span>pools found</span><b>' + esc(d.poolsFound) + '</b></div>';
+    h += '</div>';
+  }
+  if (d.routingWarning) h += '<div class="note">' + esc(d.routingWarning) + '</div>';
+  if (d.dynamicFeeNote) h += '<div class="note">' + esc(d.dynamicFeeNote) + '</div>';
+  h += '</div>';
+
+  if (d.pools && d.pools.length) {
+    h += '<div class="card"><strong>Pool by pool</strong><div class="scroll"><table>';
+    h += '<thead><tr><th>pool</th><th>fee</th><th>hook</th><th>liquidity</th><th>round trip</th><th>status</th></tr></thead><tbody>';
+    for (const p of d.pools) {
+      const rt = p.roundTripBps != null ? (p.roundTripBps / 100).toFixed(2) + "%" : "&mdash;";
+      const rtCls = p.roundTripBps == null ? "dim" : p.roundTripBps > 2000 ? "bad" : p.roundTripBps > 1000 ? "warn" : "good";
+      h += '<tr>';
+      h += '<td class="mono">' + esc(String(p.name || p.poolId).slice(0, 26)) + '</td>';
+      h += '<td>' + (p.feePct != null ? esc(p.feePct) + "%" : "&mdash;") + '</td>';
+      h += '<td>' + (p.customHook ? "custom" : p.hooks ? "none" : "&mdash;") + '</td>';
+      h += '<td>' + (p.liquidityUsd != null ? "$" + Math.round(p.liquidityUsd).toLocaleString("en-US") : "&mdash;") + '</td>';
+      h += '<td class="' + rtCls + '">' + rt + '</td>';
+      h += '<td class="dim">' + esc(p.status || "") + '</td>';
+      h += '</tr>';
+    }
+    h += '</tbody></table></div></div>';
+  }
+  $("out").innerHTML = h;
+}
+
+async function run() {
+  const token = $("tok").value.trim();
+  const size = $("size").value || 5;
+  if (!/^0x[0-9a-fA-F]{40}$/.test(token)) {
+    $("out").innerHTML = '<div class="card"><p class="verdict bad">Invalid address</p>' +
+      '<p class="explain">Expected 0x followed by 40 hex characters.</p></div>';
+    return;
+  }
+  $("go").disabled = true;
+  $("out").innerHTML = '<div class="card"><p class="explain">Quoting every pool at one pinned block&hellip; ' +
+    'the first request for a token takes longer because pool keys are read from chain events.</p></div>';
+  try {
+    const r = await fetch("/sellable?token=" + encodeURIComponent(token) + "&size=" + encodeURIComponent(size));
+    render(await r.json());
+  } catch (e) {
+    $("out").innerHTML = '<div class="card"><p class="verdict dim">Request failed</p>' +
+      '<p class="explain">' + esc(String(e && e.message)) + ' &mdash; this is not a verdict about the token.</p></div>';
+  } finally {
+    $("go").disabled = false;
+  }
+}
+$("go").addEventListener("click", run);
+$("tok").addEventListener("keydown", (e) => { if (e.key === "Enter") run(); });
+</script>
+</body>
+</html>
