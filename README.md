@@ -229,6 +229,48 @@ and demand-driven rather than a single bulk load. The sensible order is newest
 first: a newborn pool is the case this project exists for, and it is what the
 service is actually asked about.
 
+### Does the hook take a cut? Measured: no large one
+
+The template's selectors include `afterSwap` and `treasury()`, which is the
+shape of a launchpad taking a fee per trade. If that were happening at scale, a
+pool's stated fee would understate its cost and reading the fee field would
+give the wrong answer.
+
+That is a hypothesis, and it is now tested rather than asserted. For a round
+trip the theoretical floor is twice the stated fee, so the excess over that
+floor is what the fee does not explain:
+
+```
+excess = measured round trip - 2 x stated fee
+```
+
+Measured at 5 USDC on pools that actually carry volume, taken from
+GeckoTerminal's ranking because the on-chain index carries no liquidity:
+
+| cohort | n | median excess |
+|---|---:|---:|
+| hooked | 10, then 12 | **0.39%** |
+| no hook (control) | 4, then 2 | 0.27% |
+
+**The hypothesis is not supported.** The hooked cohort's own excess is 0.39% —
+far below the 1% stated fee itself, and stable across two runs. A large hidden
+tax would not look like that. Finding `afterSwap` and `treasury()` in the
+bytecode shows the functions exist; it does not show that a large cut is taken
+on every swap, and conflating the two would have been exactly the kind of claim
+this repository is built to avoid.
+
+The second question — whether the remaining 0.39% is the hook or ordinary price
+impact — stays open, because it needs a control cohort and pools with no hook
+are genuinely rare among Arc's liquid pools (2 to 5 per hundred, which is what
+the 98% template rate predicts). `arastirma/arc-gizli-vergi.js` separates the
+two questions and refuses to answer the second one on a sample that small.
+
+Getting here took three attempts, and the first two failures are instructive.
+Selecting the newest pools failed to quote 165 of 165; selecting across the age
+range failed 238 of 240. Both picked pools with no liquidity, because "new" and
+"alive" are not the same thing and the index cannot tell them apart. The fix
+was to stop inferring liquidity and read it from a source that has it.
+
 ### What the registry deliberately does not do
 
 A registered key proves exactly one thing: these five fields hash to this id.
