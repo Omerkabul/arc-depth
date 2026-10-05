@@ -85,10 +85,73 @@ async function gt(path, attempt) {
   }
 }
 
+/* ---- 0) a token's pools, locally ----------------------------------------
+ *
+ * Reads the token -> pools index built by arastirma/ters-indeks-derle.js:
+ * 52-byte records sorted by token then pool id. Binary search to the first
+ * record for the token, then walk forward while the token still matches.
+ * No parsing, no network, nothing resident.
+ *
+ * This list has no liquidity in it — the index does not know any — so it is
+ * a fallback, not a replacement for the remote listing. It is, however,
+ * WIDER: the remote provider only lists pools that trade, while this knows
+ * every pool that was ever initialised, including the untraded ones a
+ * honeypot check has most reason to look at. */
+const TOKEN_INDEX = process.env.ARC_TOKEN_INDEX || "";
+const TREC = 52;
+let _tix = null;
+
+function tokenIndexHandle() {
+  if (_tix !== null) return _tix;
+  _tix = false;
+  if (!TOKEN_INDEX) return _tix;
+  try {
+    const st = fs.statSync(TOKEN_INDEX);
+    if (st.size > 0 && st.size % TREC === 0) {
+      _tix = { fd: fs.openSync(TOKEN_INDEX, "r"), count: st.size / TREC };
+    }
+  } catch (e) { _tix = false; }
+  return _tix;
+}
+
+function localPoolsOfToken(token, limit) {
+  const ix = tokenIndexHandle();
+  if (!ix) return null;
+  const want = Buffer.from(String(token).replace(/^0x/, "").toLowerCase(), "hex");
+  if (want.length !== 20) return null;
+
+  const rec = Buffer.alloc(TREC);
+  /* Lower bound: the first record whose token is >= the one we want. */
+  let lo = 0, hi = ix.count;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    fs.readSync(ix.fd, rec, 0, TREC, mid * TREC);
+    if (Buffer.compare(rec.subarray(0, 20), want) < 0) lo = mid + 1; else hi = mid;
+  }
+
+  const out = [];
+  const cap = limit || 64;
+  for (let i = lo; i < ix.count && out.length < cap; i++) {
+    fs.readSync(ix.fd, rec, 0, TREC, i * TREC);
+    if (Buffer.compare(rec.subarray(0, 20), want) !== 0) break;
+    out.push({
+      poolId: "0x" + rec.subarray(20, 52).toString("hex"),
+      name: null,
+      labelFeePct: null,
+      liquidityUsd: NaN,      /* genuinely unknown, not zero */
+      fdvUsd: NaN,
+      createdAt: null,
+      dex: null
+    });
+  }
+  return out.length ? out : null;
+}
+
 /* ---- 1) a token's pools ------------------------------------------------- */
 /* The listing is cached for a short window. See the note at the top of this
  * change: the upstream rate limit, not the chain, was setting the p90. */
 const POOLS_TTL_MS = Number(process.env.POOLS_TTL_MS || 90000);
+const REMOTE_BUDGET_MS = Number(process.env.REMOTE_LIST_BUDGET_MS || 3000);
 const POOLS_MAX = Number(process.env.POOLS_CACHE_MAX || 500);
 const _poolCache = new Map();   /* token -> { at, pools } */
 const _inflight = new Map();    /* token -> Promise, so N callers make 1 call */
@@ -111,23 +174,58 @@ async function poolsOfTokenMeta(token) {
   const k = String(token).toLowerCase();
   const hit = _poolCache.get(k);
   if (hit && Date.now() - hit.at < POOLS_TTL_MS) {
-    return { pools: hit.pools, ageMs: Date.now() - hit.at, stale: false };
+    return { pools: hit.pools, ageMs: Date.now() - hit.at, stale: false, source: "remoteCache" };
   }
   if (_inflight.has(k)) return _inflight.get(k);
 
   const job = _fetchPools(k).then(
-    (pools) => { _remember(k, pools); _inflight.delete(k); return { pools, ageMs: 0, stale: false }; },
+    (pools) => { _remember(k, pools); _inflight.delete(k); return { pools, ageMs: 0, stale: false, source: "remote" }; },
     (err) => {
       _inflight.delete(k);
       /* A rate limit is not an answer. If a previous list exists, serving it
        * with its age attached is more useful and more honest than failing. */
       const old = _poolCache.get(k);
-      if (old) return { pools: old.pools, ageMs: Date.now() - old.at, stale: true, error: String(err.message) };
+      if (old) {
+        return {
+          pools: old.pools, ageMs: Date.now() - old.at, stale: true,
+          source: "remoteCache", error: String(err.message)
+        };
+      }
+      /* No previous list either. The local index can still say which pools
+       * exist, just not how deep they are. */
+      const yerel = localPoolsOfToken(k);
+      if (yerel) {
+        return { pools: yerel, ageMs: 0, stale: false, source: "localIndex", error: String(err.message) };
+      }
       throw err;
     }
   );
   _inflight.set(k, job);
-  return job;
+
+  /* Stop waiting after the budget, but let the call finish: it still writes
+   * the cache, so the next caller gets the richer remote list for free. */
+  /* The background call may still reject after we have answered from the
+   * local index. Nothing is waiting on it by then, so swallow it here
+   * rather than let it surface as an unhandled rejection. */
+  job.catch(function () {});
+
+  const yerelVar = !!localPoolsOfToken(k, 1);
+  if (!yerelVar) return job;
+
+  let zamanlayici;
+  const butce = new Promise((resolve) => {
+    zamanlayici = setTimeout(() => {
+      const yerel = localPoolsOfToken(k);
+      resolve(yerel
+        ? { pools: yerel, ageMs: 0, stale: false, source: "localIndex",
+            error: "remote listing exceeded " + REMOTE_BUDGET_MS + " ms" }
+        : null);
+    }, REMOTE_BUDGET_MS);
+    if (zamanlayici.unref) zamanlayici.unref();
+  });
+
+  const kazanan = await Promise.race([job.then((r) => { clearTimeout(zamanlayici); return r; }), butce]);
+  return kazanan || job;
 }
 
 async function poolsOfToken(token) {
@@ -473,5 +571,5 @@ async function roundTrip(key, sizeUsdc, blockTag) {
 
 module.exports = {
   poolsOfToken, poolsOfTokenMeta, poolKeyOf, registryLookup, localIndexLookup,
-  roundTrip, quoteLeg, encodeQuote, gt
+  localPoolsOfToken, roundTrip, quoteLeg, encodeQuote, gt
 };

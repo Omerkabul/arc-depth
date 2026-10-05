@@ -15,17 +15,12 @@ quotes a full round trip through every pool at one pinned block, directly
 against the chain. Measured from that page: the same token costs 7.87% through
 its cheapest pool and 99.23% through its most expensive, a spread of 91 points.
 
-**Full service (token lookup, not just registered pools):**
-https://related-involves-idea-seat.trycloudflare.com
+**Full service (token lookup, not just registered pools):** run it yourself —
+`npm install && npm start` listens on :8712 and answers
+`/sellable?token=0x...&size=5`. There is no hosted instance: a free tunnel is
+handed a new hostname on every restart, so publishing one would be publishing a
+link that breaks. The page above needs nothing we run and keeps working either way.
 
-```bash
-curl "https://related-involves-idea-seat.trycloudflare.com/satilabilir?token=0xa39c8e2ceb2a0f9d6e9d059f5e470edfda691c15&boyut=5"
-```
-
-_The service runs behind a Cloudflare quick tunnel, which is handed a new
-hostname on every restart. If that link is unreachable, that is what happened —
-it is not a claim that the service is broken, and the site above keeps working
-regardless. `npm install && npm start` gives you the same service locally._
 <!-- CANLI:SON -->
 
 ---
@@ -129,7 +124,7 @@ curl "http://localhost:8712/sellable?token=0xa39c8e2ceb2a0f9d6e9d059f5e470edfda6
 ## How it works
 
 1. **List the token's pools** from GeckoTerminal (public, keyless).
-2. **Recover each PoolKey.** A v4 pool id is `keccak(PoolKey)` and is not reversible, so the key is read from the `PoolManager.Initialize` event that created the pool. The pool's creation time is resolved to a block by binary search, then a narrow `eth_getLogs` window is filtered by the pool id topic — one precise hit instead of scanning the chain. Keys are immutable, so they are cached permanently (first query ~35 s, afterwards ~11 s).
+2. **Recover each PoolKey.** A v4 pool id is `keccak(PoolKey)` and is not reversible, so the key is read from the `PoolManager.Initialize` event that created the pool. The pool's creation time is resolved to a block by binary search, then a narrow `eth_getLogs` window is filtered by the pool id topic — one precise hit instead of scanning the chain. Keys are immutable, so a key only ever has to be read from the chain once: they are cached on disk, served from the on-chain registry, or looked up in a prebuilt local index. See **Where the time actually goes** below for what each path costs.
 3. **Quote both legs at the same pinned block**: USDC → token, then *exactly that token amount* → USDC. The second leg must consume the first leg's output; feeding it an arbitrary amount ignores the first leg's price impact and understates the cost.
 4. **Re-read the block hash.** If it moved, the result is reported as unverified rather than quietly trusted.
 
@@ -138,7 +133,7 @@ curl "http://localhost:8712/sellable?token=0xa39c8e2ceb2a0f9d6e9d059f5e470edfda6
 ## On-chain: the PoolKey registry
 
 > **Deployed on Arc mainnet:** [`0x0B3dD19678eba80fFd986B970FE0aeD54E7Ef801`](https://explorer.arc.io/address/0x0B3dD19678eba80fFd986B970FE0aeD54E7Ef801)
-> &nbsp;&nbsp;block 24228647 &middot; 8 pools registered &middot; no owner, no admin, no upgrade path
+> &nbsp;&nbsp;block 24228647 &middot; **225 pools registered** &middot; no owner, no admin, no upgrade path
 
 A v4 pool id is `keccak256(abi.encode(PoolKey))`. A hash is one-way, so an id
 alone tells you nothing about the pool it names — not the currencies, the fee,
@@ -381,6 +376,10 @@ Repeat requests went from 10–12 s to 0.4–1.5 s. The listing is cached becaus
 
 Making it faster exposed a second fault. `quoteLeg` cannot use the retrying RPC client — for this quoter a revert *is* the success path, and the answer arrives in the revert payload — so it had no protection against HTTP 429 at all. That was invisible while requests were slow. Once they were quick, three requests in four seconds reported `UNMEASURED` on three of four pools: the service got faster and started claiming it could not measure pools that are perfectly measurable. Only a rate limit is retried now, with a short backoff, because the call is pinned to a block and a long wait risks that block ageing out of state before the second leg is asked.
 
+And a third, once the keys were local: the listing provider's own client retries 3 s, 6 s, 12 s, so a rate-limited listing could hold a request for twenty seconds while every key underneath it resolved in under a millisecond. Waiting that long is only worth it if the remote answer is much better, and it is not — the remote list carries liquidity, the local index is complete. So the remote call now has a 3 s budget (`REMOTE_LIST_BUDGET_MS`). It keeps running in the background and still fills the cache for the next caller, but this caller stops waiting and answers from the local index, with `poolListSource` saying which was used. Cold requests that previously took 10–33 s now take 3–4 s on that path.
+
+Each answer also carries `keySource` per pool — `localCache`, `localIndex`, `onChainRegistry` or `initializeLogScan` — so a reader can see whether the key a quote was taken with came from a verified on-chain record or from a log scan.
+
 ### Prebuilt key index (optional)
 
 A v4 pool id is `keccak(PoolKey)` and is not reversible, so a key has to be read from the `Initialize` event that created the pool. Those events never change, so they only need reading once:
@@ -393,6 +392,21 @@ ARC_POOL_INDEX=data/havuz-indeksi.bin npm start
 The source is any dictionary of `poolId -> {c0, c1, f, t, h}` gathered from `Initialize`. The output is fixed-width records sorted by pool id, so a lookup is a binary search over the file — about eighteen 100-byte reads, nothing parsed, and no resident memory, which matters for a service that otherwise runs in 21 MB. 216,839 pools fit in 21 MB.
 
 Every record is hashed and checked against its pool id when it is written **and** again when it is read. The index is never trusted on its word: a wrong key would produce a confident wrong quote, which is worse than a slow correct one. With `ARC_POOL_INDEX` unset everything behaves exactly as before — the index is an accelerator, never a dependency, and the on-chain registry and log scan remain underneath it.
+
+### Prebuilt token index (optional)
+
+The same source inverts into a token -> pools index, which lets the service answer "which pools does this token have" with no network call at all:
+
+```
+node arastirma/ters-indeks-derle.js <pools.json> data/token-havuz.bin
+ARC_TOKEN_INDEX=data/token-havuz.bin npm start
+```
+
+243,851 records for 196,100 tokens in 12 MB; a lookup is 3 ms. Entries for the quote asset itself are omitted, because almost every pool is paired against USDC and filing 200k pools under one key helps nobody.
+
+This list is **wider** than the remote one. The provider only lists pools that trade, so an untraded pool is invisible there — and an untraded pool is exactly the kind a honeypot check has most reason to look at. Measured on three tokens, the local index found 5, 3 and 3 pools where the provider returned 4, 2 and 2.
+
+What it does not know is liquidity, which is why it is a fallback rather than a replacement: without liquidity there is no honest way to rank pools when a token has more than one request can quote. When the local list is used, the answer says so and states plainly that the pools below were **not** chosen deepest-first. The index says that case is rare anyway — median pools per token 1, p90 1.
 
 ## License
 

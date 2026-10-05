@@ -82,6 +82,14 @@ async function measure(token, sizeUsdc) {
   /* How old the pool LISTING is. Every quote below is still taken live at the
    * pinned block; only the set of pools to quote may lag by this much. */
   answer.poolListAgeMs = listMeta.ageMs;
+  answer.poolListSource = listMeta.source || "remote";
+  if (listMeta.source === "localIndex") {
+    answer.poolListNote = "The listing provider failed (" +
+      String(listMeta.error).slice(0, 60) + "), so the pool set came from the local " +
+      "Initialize index instead. It is complete — it includes pools with no trading " +
+      "volume, which the provider omits — but it carries no liquidity, so the pools " +
+      "quoted below were NOT chosen deepest-first.";
+  }
   if (listMeta.stale) {
     answer.poolListStale = true;
     answer.poolListNote = "The pool listing provider failed for this request (" +
@@ -128,6 +136,10 @@ async function measure(token, sizeUsdc) {
       row.reason = key.error;
       results.push(row); continue;
     }
+    row.keySource = key.fromCache ? "localCache"
+      : key.fromLocalIndex ? "localIndex"
+      : key.fromRegistry ? "onChainRegistry"
+      : "initializeLogScan";
     row.fee = key.fee;
     row.feePct = Number((key.fee / 10000).toFixed(4));
     row.tickSpacing = key.tickSpacing;
