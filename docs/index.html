@@ -186,20 +186,19 @@
   </ul>
 
   <h2>Run it yourself</h2>
-  <p>Every number above comes from a script in the repository, so it can be re-derived rather than
-     believed.</p>
+  <p>Every number above comes from a script in the <a id="repo1" href="#" rel="noopener">repository</a>,
+     so it can be re-derived rather than believed. Clone it, then:</p>
   <div class="card">
-<pre style="margin:0;overflow-x:auto"><code>git clone https://github.com/Omerkabul/arc-depth.git
-cd arc-depth &amp;&amp; npm install
+<pre style="margin:0;overflow-x:auto"><code>npm install
 npm run check            <span class="dim"># service self-checks, against mainnet</span>
 npm run contract:check   <span class="dim"># compiled + deployed contract, no key needed</span></code></pre>
   </div>
 
   <footer>
     <div class="links">
-      <a href="https://github.com/Omerkabul/arc-depth" rel="noopener">Source</a>
+      <a id="repo2" href="#" rel="noopener">Source</a>
       <a id="explorer" href="#" rel="noopener">Contract on Arc</a>
-      <a href="https://github.com/Omerkabul/arc-depth/tree/trunk/arastirma" rel="noopener">Research scripts</a>
+      <a id="repo3" href="#" rel="noopener">Research scripts</a>
     </div>
     <p style="margin-top:16px">MIT. Built for <a href="https://dorahacks.io/hackathon/arc-microgrants/detail" rel="noopener">Arc Microgrants</a>.
        Arc chain id 5042, gas paid in USDC.</p>
@@ -238,8 +237,16 @@ const $ = (id) => document.getElementById(id);
 const coder = AbiCoder.defaultAbiCoder();
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
 
+/* The repository URL lives here only. It is written into links at runtime so
+ * it never appears as visible text on the page, and so that moving the
+ * repository is one edit rather than several. */
+const REPO = "https://github.com/Omerkabul/arc-depth";
+
 $("explorer").href = "https://explorer.arc.io/address/" + REGISTRY;
 $("reglink").href  = "https://explorer.arc.io/address/" + REGISTRY;
+$("repo1").href = REPO;
+$("repo2").href = REPO;
+$("repo3").href = REPO + "/tree/site/arastirma";
 
 let _id = 0;
 async function rpc(method, params) {
