@@ -502,7 +502,13 @@ function encodeQuote(key, zeroForOne, amountIn) {
   return Z.ARC.quoterSelector + body.slice(2);
 }
 
-const QUOTE_RATE_TRIES = Number(process.env.QUOTE_RATE_TRIES || 4);
+/* Short and few on purpose. If the endpoint is throttling hard, waiting
+ * longer does not produce a quote, it just produces a late answer — and
+ * the call is pinned to a block that is ageing while we wait. Four tries
+ * at up to 5 s each could hold a single pool for twenty seconds, which was
+ * measured. UNMEASURED delivered quickly is more useful than a number
+ * delivered after the caller has given up. */
+const QUOTE_RATE_TRIES = Number(process.env.QUOTE_RATE_TRIES || 2);
 
 async function quoteLeg(key, zeroForOne, amountIn, blockTag) {
   const data = encodeQuote(key, zeroForOne, amountIn);
@@ -523,7 +529,7 @@ async function quoteLeg(key, zeroForOne, amountIn, blockTag) {
      * revert decoding below. */
     if (e.rateLimited && rateHits < QUOTE_RATE_TRIES) {
       rateHits++;
-      const bekle = Math.min(e.retryAfterMs || 600 * Math.pow(2, rateHits - 1), 5000);
+      const bekle = Math.min(e.retryAfterMs || 400 * Math.pow(2, rateHits - 1), 1500);
       await new Promise((r) => setTimeout(r, bekle));
       continue;
     }

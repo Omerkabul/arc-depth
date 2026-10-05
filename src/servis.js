@@ -31,6 +31,9 @@ const RATE_PER_MIN = Number(process.env.RATE_PER_MIN || 20);
 const MAX_POOLS = Number(process.env.MAX_POOLS || 8);
 const DEFAULT_SIZE = Number(process.env.DEFAULT_SIZE || 5);
 const MAX_SIZE = Number(process.env.MAX_SIZE || 500);
+/* Wall-clock ceiling for the quoting loop. Not a timeout on the request:
+ * whatever was measured before the ceiling is still returned. */
+const MEASURE_BUDGET_MS = Number(process.env.MEASURE_BUDGET_MS || 9000);
 
 const log = (...a) => console.log("[arc-depth " + new Date().toISOString().slice(11, 19) + "]", ...a);
 
@@ -125,7 +128,19 @@ async function measure(token, sizeUsdc) {
   answer.block = block; answer.blockHash = blockHash;
 
   const results = [];
+  let butceAsildi = false;
   for (const p of candidates) {
+    if (Date.now() - started > MEASURE_BUDGET_MS) {
+      butceAsildi = true;
+      results.push({
+        poolId: p.poolId, name: p.name, dex: p.dex,
+        labelFeePct: p.labelFeePct,
+        liquidityUsd: Number.isFinite(p.liquidityUsd) ? p.liquidityUsd : null,
+        status: "UNMEASURED",
+        reason: "not reached within the " + MEASURE_BUDGET_MS + " ms measurement budget"
+      });
+      continue;
+    }
     const row = {
       poolId: p.poolId, name: p.name, dex: p.dex,
       labelFeePct: p.labelFeePct, liquidityUsd: Number.isFinite(p.liquidityUsd) ? p.liquidityUsd : null
@@ -150,6 +165,12 @@ async function measure(token, sizeUsdc) {
     results.push(row);
   }
   answer.pools = results;
+  if (butceAsildi) {
+    answer.budgetExceeded = true;
+    answer.budgetNote = "Quoting stopped after " + MEASURE_BUDGET_MS + " ms, usually because the " +
+      "RPC was rate limiting. Pools marked UNMEASURED below were not reached — that is not a " +
+      "verdict about them, and the summary covers only the pools that were measured.";
+  }
 
   /* Pin verification: did the chain move under us while we were reading? */
   if (block != null && blockHash) {

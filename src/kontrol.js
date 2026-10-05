@@ -110,6 +110,13 @@ async function liveCheck() {
 
   const block = await Z.blockNumber();
   const rt = await H.roundTrip(key, 5, block);
+  /* An UNMEASURED caused by throttling is the endpoint declining to answer,
+   * not this code being wrong. Calling that a failure teaches us to ignore
+   * our own test, so it is reported as LIMIT exactly like the stages above. */
+  if (rt.status === "UNMEASURED" && rateLimitHatasi({ message: rt.reason })) {
+    checkE({ message: rt.reason }, "round-trip quote", rt.reason);
+    return;
+  }
   check(rt.status === "MEASURED" || rt.status === "CANNOT_SELL",
     "round-trip quote", rt.status + (rt.roundTripBps != null ? " at " + rt.roundTripBps + " bps" : "") + (rt.reason ? " (" + rt.reason + ")" : ""));
 }
