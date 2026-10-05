@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>arc-depth</title>
+<meta name="description" content="Which of an Arc token's Uniswap v4 pools can you actually trade through, and what does a round trip cost? Measured on mainnet, read-only.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📐</text></svg>">
+<style>
+  :root{
+    --bg:#0f1115; --panel:#161920; --panel2:#1b1f27; --line:#272c37; --ink:#e8ebf1;
+    --dim:#8d96a8; --good:#3fb950; --mid:#d29922; --bad:#f85149; --accent:#58a6ff;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#f7f8fa; --panel:#fff; --panel2:#f1f3f6; --line:#e1e5ea; --ink:#171a1f;
+      --dim:#5b6472; --good:#1a7f37; --mid:#9a6700; --bad:#cf222e; --accent:#0969da;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1115; --panel:#161920; --panel2:#1b1f27; --line:#272c37; --ink:#e8ebf1;
+    --dim:#8d96a8; --good:#3fb950; --mid:#d29922; --bad:#f85149; --accent:#58a6ff;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);padding:0 16px;
+    font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  .wrap{max-width:860px;margin:0 auto;padding:56px 0 80px}
+  h1{font-size:clamp(30px,6vw,44px);margin:0 0 10px;letter-spacing:-.025em;line-height:1.1}
+  h2{font-size:clamp(20px,3.6vw,26px);margin:52px 0 14px;letter-spacing:-.015em}
+  h3{font-size:17px;margin:28px 0 8px}
+  p{margin:0 0 14px}
+  .lede{font-size:clamp(17px,2.4vw,20px);color:var(--dim);margin:0 0 10px}
+  .meta{font-size:14px;color:var(--dim);margin:0 0 28px}
+  a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:2px}
+  code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em}
+  code{background:var(--panel2);padding:2px 6px;border-radius:5px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;margin:22px 0}
+  .scroll{overflow-x:auto;margin:0 -22px;padding:0 22px}
+  table{width:100%;border-collapse:collapse;font-size:14.5px;min-width:460px}
+  th,td{text-align:right;padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--dim);font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+  tbody tr:last-child td{border-bottom:0}
+  .good{color:var(--good)} .mid{color:var(--mid)} .bad{color:var(--bad)} .dim{color:var(--dim)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  button{
+    background:var(--accent);color:#fff;border:0;border-radius:9px;
+    padding:11px 20px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;
+  }
+  button:disabled{opacity:.5;cursor:default}
+  button.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
+  input{
+    flex:1 1 300px;min-width:0;background:var(--bg);color:var(--ink);
+    border:1px solid var(--line);border-radius:9px;padding:11px 12px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px;
+  }
+  .stat{display:flex;gap:30px;flex-wrap:wrap;margin:16px 0 0}
+  .stat div span{display:block;font-size:11.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+  .stat div b{font-size:27px;font-weight:650;font-variant-numeric:tabular-nums;line-height:1.3}
+  .note{border-left:3px solid var(--mid);padding:11px 15px;background:color-mix(in srgb,var(--mid) 10%,transparent);
+        border-radius:0 9px 9px 0;font-size:14.5px;margin:16px 0}
+  ul{padding-left:20px;margin:0 0 14px}
+  li{margin:7px 0}
+  .pill{display:inline-block;font-size:11.5px;padding:3px 9px;border-radius:99px;
+        border:1px solid var(--line);color:var(--dim);margin-left:8px;vertical-align:middle;white-space:nowrap}
+  footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-size:14px;color:var(--dim)}
+  .links{display:flex;gap:18px;flex-wrap:wrap;margin:18px 0 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>arc-depth</h1>
+  <p class="lede">Which of an Arc token's Uniswap v4 pools can you actually trade through,
+     and what does a buy-then-sell round trip really cost?</p>
+  <p class="meta">Read-only. No wallet, no signing, no transactions — every number on this page is an
+     <code>eth_call</code> your browser makes directly to Arc.</p>
+
+  <!-- ===================== LIVE ===================== -->
+  <h2>Same token. Eight pools. One block.</h2>
+  <p>These are the pools recorded in the on-chain registry, all for one Arc token. Your browser reads
+     each key from the contract, then quotes a full round trip through every pool at a single pinned
+     block. Nothing here is precomputed and nothing is served by a backend.</p>
+
+  <div class="card">
+    <div class="row">
+      <button id="go">Run it live</button>
+      <button id="again" class="ghost" hidden>Run again</button>
+      <span id="phase" class="dim" style="font-size:14px"></span>
+    </div>
+    <div id="stat" class="stat" hidden></div>
+    <div id="out"></div>
+  </div>
+
+  <h3>Check any registered pool</h3>
+  <p class="dim" style="font-size:14.5px">A v4 pool id is a one-way hash, so an id alone tells you
+     nothing. Paste one and the registry answers with the key behind it.</p>
+  <div class="card">
+    <div class="row">
+      <input id="pid" spellcheck="false" placeholder="0x… 32-byte pool id">
+      <button id="look" class="ghost">Look up</button>
+    </div>
+    <div id="lookout" style="margin-top:14px"></div>
+  </div>
+
+  <!-- ===================== WHY ===================== -->
+  <h2>Why this matters</h2>
+  <p>On Arc the same token can be bought through pools that differ by more than ninety percentage
+     points in cost. No rug, no honeypot, no malice — just the wrong pool. Nothing published on Arc
+     tells a buyer which one is usable.</p>
+  <p>The existing Arc scanners cannot answer it and say so. From
+     <a href="https://smithii.io/en/rug-check-arc/" rel="noopener">Smithii's Arc rug checker</a>:
+     <em>"token scanners rely on third-party providers that simulate buys and sells to catch
+     honeypots, and those providers don't cover Arc yet."</em> Their honeypot, tax and holder checks
+     return <strong>Unknown</strong>, and their suggested workaround is to buy a tiny amount and try
+     to sell it. That is what this does — as a quote, so it costs nothing and risks nothing.</p>
+
+  <h3>How common is it, measured</h3>
+  <p>From an index of <strong>216,632 <code>Initialize</code> events</strong> — every v4 pool on Arc.
+     Across the whole population the answer is boring: 97.1% of tokens have exactly one pool. But most
+     of those are dead launches, and a token nobody trades has no routing problem. Sampling 151 tokens
+     by 24h volume:</p>
+  <div class="card scroll">
+    <table>
+      <thead><tr><th>cohort</th><th>median pools</th><th>one pool</th><th>5 or more</th></tr></thead>
+      <tbody>
+        <tr><td><strong>actively traded</strong> (n=151)</td><td><strong>3</strong></td><td>2.0%</td><td><strong>19.9%</strong></td></tr>
+        <tr><td>random control (n=151)</td><td>1</td><td>96.0%</td><td>1.3%</td></tr>
+        <tr><td>all tokens (n=195,494)</td><td>1</td><td>97.1%</td><td>0.7%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>One in five actively traded Arc tokens has five or more pools — <strong>thirty times the base
+     rate</strong>. The problem is concentrated exactly where the volume is. From the same index,
+     <strong>16,004 pools charge 50% or more</strong>, 6,280 of them over 90%, and 4,631 use a
+     dynamic fee no one can quote in advance.</p>
+
+  <!-- ===================== REGISTRY ===================== -->
+  <h2>The missing primitive</h2>
+  <p>A v4 pool id is <code>keccak256(abi.encode(PoolKey))</code>. A hash is one-way, so the id tells
+     you nothing about the pool it names — not the currencies, the fee, the tick spacing or the hook.
+     The only record of a key is the <code>Initialize</code> event emitted once at creation.</p>
+  <p>Off-chain that is expensive: Arc rejects wide <code>eth_getLogs</code> ranges, so a key has to be
+     recovered by binary-searching block timestamps and scanning a narrow window — tens of seconds per
+     token. For a contract it is <strong>impossible</strong>: the EVM cannot read a past event, so
+     on-chain logic holding a pool id is stuck with an opaque 32 bytes.</p>
+  <p><a id="reglink" href="#" rel="noopener"><code>PoolKeyRegistry</code></a> fixes that. It derives
+     the id <em>from</em> the key rather than accepting a caller-supplied pair, so a wrong entry is
+     impossible by construction — planting one would take a keccak collision, not gas. No owner, no
+     admin function, no upgrade path. Wired into the service as a lookup tier it measures
+     <strong>65–76&nbsp;ms</strong> against the log scan's tens of seconds.</p>
+
+  <h3>One program, 160,569 addresses</h3>
+  <p>Arc's 216,632 pools reference 160,569 distinct hook addresses — nearly one per pool. Hashing
+     their bytecode suggests 160,000 different programs, but that is an artifact: Solidity bakes
+     immutables into deployed code, so identical contracts hash differently.</p>
+  <p>Code size sees through it. Of 150 hooks sampled from the long tail: 150 distinct hashes, but only
+     <strong>3 distinct code sizes</strong>, and <strong>148 of 150 are exactly 5,175 bytes</strong>.
+     Its selectors are <code>poolManager()</code>, <code>beforeInitialize</code>,
+     <code>afterSwap</code> and <code>treasury()</code>.</p>
+  <p>That shape — a hook running after every swap, holding a treasury — looks like a launchpad taking
+     a cut, which would mean a pool's stated fee understates its cost. So it was tested rather than
+     asserted. Measured at 5 USDC on pools that carry volume, the hooked cohort's excess over twice
+     the stated fee is <strong>0.39%</strong>, stable across runs of 10 and 12 pools, far below the 1%
+     fee itself. <strong>The hypothesis failed.</strong> Finding a function in bytecode shows it
+     exists, not that it is used at scale.</p>
+
+  <!-- ===================== LIMITS ===================== -->
+  <h2>What this does not claim</h2>
+  <ul>
+    <li><strong>A failed call is not a verdict.</strong> Quote failures are reported as unmeasured,
+        never as "cannot sell". Treating a network error as a honeypot stamps healthy pools as traps.</li>
+    <li><strong>Uniswap v4 only.</strong> Arc also has about 10,000 v3 pools; the v4 quoter cannot
+        price them and they are not covered.</li>
+    <li><strong>Dynamic-fee pools are flagged, not priced.</strong> The hook sets the fee at swap
+        time, so no fixed percentage would be honest.</li>
+    <li><strong>One block is a measurement, not a guarantee.</strong> Hook behaviour and liquidity can
+        change in the next one.</li>
+    <li><strong>The registry is nearly empty.</strong> Eight pools of 216,632 are registered. Filling
+        it costs about 0.0014 USDC per key and is incremental, not a bulk load.</li>
+    <li><strong>The public Arc RPC is rate limited.</strong> Measured end to end, this service has a
+        median latency of 4.3 s and a p90 of 40 s. Serving real traffic needs a dedicated endpoint.</li>
+  </ul>
+
+  <h2>Run it yourself</h2>
+  <p>Every number above comes from a script in the repository, so it can be re-derived rather than
+     believed.</p>
+  <div class="card">
+<pre style="margin:0;overflow-x:auto"><code>git clone https://github.com/Omerkabul/arc-depth.git
+cd arc-depth &amp;&amp; npm install
+npm run check            <span class="dim"># service self-checks, against mainnet</span>
+npm run contract:check   <span class="dim"># compiled + deployed contract, no key needed</span></code></pre>
+  </div>
+
+  <footer>
+    <div class="links">
+      <a href="https://github.com/Omerkabul/arc-depth" rel="noopener">Source</a>
+      <a id="explorer" href="#" rel="noopener">Contract on Arc</a>
+      <a href="https://github.com/Omerkabul/arc-depth/tree/trunk/arastirma" rel="noopener">Research scripts</a>
+    </div>
+    <p style="margin-top:16px">MIT. Built for <a href="https://dorahacks.io/hackathon/arc-microgrants/detail" rel="noopener">Arc Microgrants</a>.
+       Arc chain id 5042, gas paid in USDC.</p>
+  </footer>
+</div>
+
+<script type="module">
+import { AbiCoder } from "https://cdn.jsdelivr.net/npm/ethers@6.13.4/+esm";
+
+/* All constants verified on-chain, not written from memory. */
+const RPC      = "https://rpc.mainnet.arc.io";
+const USDC     = "0x3600000000000000000000000000000000000000";
+const QUOTER   = "0x8Dc178eFB8111BB0973Dd9d722ebeFF267c98F94";
+const QSEL     = "0xaa9d21cb";
+const REGISTRY = "0x0B3dD19678eba80fFd986B970FE0aeD54E7Ef801";
+const RGET     = "0x8eaa6ac0";            /* get(bytes32) */
+const DYNAMIC  = 8388608;                 /* 2^23, dynamic-fee flag */
+const SIZE     = 5;                       /* USDC */
+
+/* Pool ids held by the registry. The page does NOT trust this list: every id
+ * is resolved against the live contract and anything it does not know is
+ * dropped. The seed exists only because the registry has no enumeration
+ * function and Arc rejects the log range needed to discover them. */
+const SEED = [
+  "0x3cfaa5bde72019a032194fbd2843b69247d1b2df7ae1a9549fd339e9098ea475",
+  "0x7d7780dbc78c1947c481e3329b070ec95045e7dd42fa969ef3ee7c77e701079f",
+  "0x16abb6e8b2a11966280ca1d16481dfb939bb5542bfa418dd928e063c4074bd6d",
+  "0xbe951d40661a10cedc3941fe10fa1778556fe7c12477dada7d1cf5c8cbe365e5",
+  "0xcaa7cfdc526154afa90499596d67f6137d9ed3801bba06e2eb729b3846b8af7e",
+  "0x446f81c8c86ed5d615d06dae4e1b968216c4d546f4267c9d3eac62b89e4d0916",
+  "0x7bf74ea9a7fdd7f8d6b7e4fca9b37fa952747197e83fec9ef3e26f0c12226166",
+  "0xc362f08b2d304500e7299eaaf6184492ba3653d831615fe521d0791147f5a0f2"
+];
+
+const $ = (id) => document.getElementById(id);
+const coder = AbiCoder.defaultAbiCoder();
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+
+$("explorer").href = "https://explorer.arc.io/address/" + REGISTRY;
+$("reglink").href  = "https://explorer.arc.io/address/" + REGISTRY;
+
+let _id = 0;
+async function rpc(method, params) {
+  const r = await fetch(RPC, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: ++_id, method, params })
+  });
+  if (!r.ok) throw Object.assign(new Error("HTTP " + r.status), { http: r.status });
+  const j = await r.json();
+  if (j.error) throw Object.assign(new Error(j.error.message || "rpc error"), { code: j.error.code, data: j.error.data });
+  return j.result;
+}
+
+/* The public endpoint rate limits. Backing off is the difference between
+ * "this pool is a trap" and "we were throttled", and only one of those is
+ * true. */
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function rpcRetry(method, params, tries = 4) {
+  let last;
+  for (let i = 0; i < tries; i++) {
+    try { return await rpc(method, params); }
+    catch (e) {
+      last = e;
+      const limited = e.http === 429 || e.http === 503 || /rate|too many/i.test(e.message || "");
+      if (!limited || i === tries - 1) throw e;
+      await sleep(1200 * Math.pow(2, i));
+    }
+  }
+  throw last;
+}
+
+async function registryGet(poolId) {
+  const out = await rpcRetry("eth_call", [{ to: REGISTRY, data: RGET + poolId.slice(2) }, "latest"]);
+  const [found, key] = coder.decode(["bool", "tuple(address,address,uint24,int24,address)"], out);
+  if (!found) return null;
+  return { currency0: key[0], currency1: key[1], fee: Number(key[2]), tickSpacing: Number(key[3]), hooks: key[4] };
+}
+
+function encodeQuote(k, zeroForOne, amountIn) {
+  const body = coder.encode(
+    ["tuple(tuple(address,address,uint24,int24,address),bool,uint128,bytes)"],
+    [[[k.currency0, k.currency1, k.fee, k.tickSpacing, k.hooks], zeroForOne, amountIn, "0x"]]
+  );
+  return QSEL + body.slice(2);
+}
+
+/* The quoter answers through a revert payload on some nodes and a normal
+ * return on others, so both are handled. A call that fails with nothing
+ * decodable is UNMEASURED — it is not a verdict about the pool. */
+async function quoteLeg(key, zeroForOne, amountIn, block) {
+  const call = { to: QUOTER, data: encodeQuote(key, zeroForOne, amountIn) };
+  try {
+    const out = await rpcRetry("eth_call", [call, block]);
+    if (out && out !== "0x") {
+      const v = BigInt("0x" + out.slice(2, 66));
+      return v > 0n ? { amountOut: v } : { reason: "quote returned zero" };
+    }
+    return { reason: "empty response" };
+  } catch (e) {
+    const blob = String((e.data && (e.data.data || e.data)) || e.message || "");
+    const m = /0x[0-9a-fA-F]{64,}/.exec(blob);
+    if (m) {
+      const v = BigInt("0x" + m[0].slice(2, 66));
+      if (v > 0n) return { amountOut: v };
+      return { reason: "revert payload decoded to zero" };
+    }
+    return { unmeasured: true, reason: String(e.message).slice(0, 70) };
+  }
+}
+
+/* Both legs at ONE block, and the second leg consumes exactly what the first
+ * produced. Feeding it an arbitrary amount ignores the first leg's price
+ * impact and understates the cost. */
+async function roundTrip(key, block) {
+  const zeroForOne = key.currency0.toLowerCase() === USDC;
+  const amountIn = BigInt(Math.round(SIZE * 1e6));
+  const buy = await quoteLeg(key, zeroForOne, amountIn, block);
+  if (!buy.amountOut) return { status: buy.unmeasured ? "UNMEASURED" : "CANNOT_BUY", reason: buy.reason };
+  const sell = await quoteLeg(key, !zeroForOne, buy.amountOut, block);
+  if (!sell.amountOut) return { status: sell.unmeasured ? "UNMEASURED" : "CANNOT_SELL", reason: sell.reason };
+  const back = Number(sell.amountOut) / 1e6;
+  return { status: "MEASURED", bps: Math.round((1 - back / SIZE) * 10000), back };
+}
+
+function cls(bps) { return bps == null ? "dim" : bps > 2000 ? "bad" : bps > 1000 ? "mid" : "good"; }
+
+async function run() {
+  $("go").disabled = true; $("again").disabled = true;
+  $("out").innerHTML = ""; $("stat").hidden = true;
+  const say = (t) => { $("phase").textContent = t; };
+
+  try {
+    say("pinning a block…");
+    const head = await rpcRetry("eth_blockNumber", []);
+    const block = head;                       /* every quote uses this one */
+    const bn = parseInt(head, 16);
+
+    say("reading keys from the registry…");
+    const keys = [];
+    for (const id of SEED) {
+      try { const k = await registryGet(id); if (k) keys.push({ id, k }); } catch (e) { /* skip */ }
+    }
+    if (!keys.length) {
+      $("out").innerHTML = '<p class="dim">The registry did not return any of the seeded pools. ' +
+        'That is a lookup failure, not a statement about the pools.</p>';
+      return;
+    }
+
+    const rows = [];
+    for (let i = 0; i < keys.length; i++) {
+      say("quoting pool " + (i + 1) + " of " + keys.length + "…");
+      const { id, k } = keys[i];
+      const dyn = k.fee === DYNAMIC;
+      const r = dyn ? { status: "DYNAMIC_FEE" } : await roundTrip(k, block);
+      rows.push({ id, k, r, dyn });
+      render(rows, bn, keys.length);
+    }
+
+    const ok = rows.filter((x) => x.r.status === "MEASURED").map((x) => x.r.bps);
+    if (ok.length) {
+      const best = Math.min(...ok), worst = Math.max(...ok);
+      $("stat").hidden = false;
+      $("stat").innerHTML =
+        '<div><span>cheapest route</span><b class="good">' + (best / 100).toFixed(2) + '%</b></div>' +
+        '<div><span>worst measured</span><b class="bad">' + (worst / 100).toFixed(2) + '%</b></div>' +
+        '<div><span>spread</span><b>' + ((worst - best) / 100).toFixed(2) + ' pts</b></div>' +
+        '<div><span>pinned block</span><b style="font-size:19px">' + bn.toLocaleString("en-US") + '</b></div>';
+    }
+    say("done — " + ok.length + " of " + rows.length + " pools measured at block " + bn.toLocaleString("en-US"));
+  } catch (e) {
+    say("");
+    $("out").innerHTML = '<div class="note">Could not finish: ' + esc(e.message) +
+      '. The public Arc RPC rate limits; this is not a verdict about any pool. Try again in a moment.</div>';
+  } finally {
+    $("go").hidden = true; $("again").hidden = false;
+    $("go").disabled = false; $("again").disabled = false;
+  }
+}
+
+function render(rows, bn) {
+  let h = '<div class="scroll" style="margin-top:18px"><table><thead><tr>' +
+    '<th>pool</th><th>fee</th><th>hook</th><th>round trip</th><th>status</th>' +
+    '</tr></thead><tbody>';
+  for (const { id, k, r, dyn } of rows) {
+    const feeTxt = dyn ? "dynamic" : (k.fee / 10000).toFixed(2) + "%";
+    const hookTxt = /^0x0{40}$/i.test(k.hooks) ? "none" : "custom";
+    const rt = r.status === "MEASURED" ? (r.bps / 100).toFixed(2) + "%" : "—";
+    const st = r.status === "MEASURED" ? "measured"
+             : r.status === "DYNAMIC_FEE" ? "flagged, not priced"
+             : r.status === "UNMEASURED" ? "unmeasured"
+             : r.status.toLowerCase().replace("_", " ");
+    h += '<tr>' +
+      '<td class="mono">' + esc(id.slice(0, 12)) + '…</td>' +
+      '<td>' + esc(feeTxt) + '</td>' +
+      '<td class="dim">' + hookTxt + '</td>' +
+      '<td class="' + cls(r.status === "MEASURED" ? r.bps : null) + '">' + rt + '</td>' +
+      '<td class="dim">' + esc(st) + '</td>' +
+      '</tr>';
+  }
+  h += '</tbody></table></div>';
+  $("out").innerHTML = h;
+}
+
+async function lookup() {
+  const v = $("pid").value.trim();
+  const o = $("lookout");
+  if (!/^0x[0-9a-fA-F]{64}$/.test(v)) {
+    o.innerHTML = '<p class="bad" style="margin:0">Expected 0x followed by 64 hex characters.</p>';
+    return;
+  }
+  $("look").disabled = true;
+  o.innerHTML = '<p class="dim" style="margin:0">asking the contract…</p>';
+  try {
+    const k = await registryGet(v);
+    if (!k) {
+      o.innerHTML = '<p style="margin:0">Not registered. <span class="dim">That means nobody has ' +
+        'submitted this key yet — it does not mean the pool does not exist.</span></p>';
+      return;
+    }
+    o.innerHTML = '<div class="scroll"><table><tbody>' +
+      '<tr><td>currency0</td><td class="mono">' + esc(k.currency0) + '</td></tr>' +
+      '<tr><td>currency1</td><td class="mono">' + esc(k.currency1) + '</td></tr>' +
+      '<tr><td>fee</td><td>' + (k.fee === DYNAMIC ? "dynamic" : (k.fee / 10000).toFixed(2) + "%") + '</td></tr>' +
+      '<tr><td>tickSpacing</td><td>' + k.tickSpacing + '</td></tr>' +
+      '<tr><td>hooks</td><td class="mono">' + esc(k.hooks) + '</td></tr>' +
+      '</tbody></table></div>';
+  } catch (e) {
+    o.innerHTML = '<p class="dim" style="margin:0">Lookup failed: ' + esc(e.message) +
+      '. This is a network result, not an answer about the pool.</p>';
+  } finally { $("look").disabled = false; }
+}
+
+$("go").addEventListener("click", run);
+$("again").addEventListener("click", run);
+$("look").addEventListener("click", lookup);
+$("pid").addEventListener("keydown", (e) => { if (e.key === "Enter") lookup(); });
+</script>
+</body>
+</html>
