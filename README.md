@@ -346,3 +346,4 @@ for sharing a link; a stable address needs a named tunnel or ordinary hosting.
 What is exposed: two read-only GET endpoints and a static page. No wallet, no
 keys, no write path. Requests are rate limited per IP and the quote size is
 capped, because the public Arc RPC behind it is shared.
+
