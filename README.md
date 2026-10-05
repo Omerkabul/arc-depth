@@ -7,7 +7,7 @@ A read-only service for [Arc](https://www.arc.io) (Circle's L1, chain id 5042). 
 No wallet. No signing. No transactions. No approvals. Every number comes from an `eth_call` quote.
 
 <!-- CANLI:BAS -->
-**Site:** https://omerkabul.github.io/arc-depth/
+**Site:** https://arc-depth.github.io/arc-depth/
 
 A static page that needs nothing we run. Arc's RPC sends permissive CORS
 headers, so the browser reads each PoolKey from the deployed registry and
