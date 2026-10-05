@@ -323,8 +323,38 @@ Three bugs here failed *silently* — returning plausible numbers instead of err
 | `MAX_POOLS` | `8` pools quoted per request |
 | `MAX_SIZE` | `500` USDC |
 | `POOLKEY_CACHE` | `data/poolkeys.json` |
+| `POOLS_TTL_MS` | `90000` — how long a pool listing may be reused |
+| `ARC_POOL_INDEX` | unset — path to a prebuilt key index, see below |
+| `QUOTE_RATE_TRIES` | `4` — retries when the RPC returns 429 |
 
 The cache holds only derived public data (pool id, currencies, fee, tick spacing, hook address). Deleting it costs speed, never correctness.
+
+### Where the time actually goes
+
+Timing the stages separately, rather than the request as a whole, found two things worth fixing and one worth leaving alone.
+
+| stage | before | after |
+|---|---|---|
+| pool listing | up to 12 s, rate-limited with 3/6/12 s backoff | cached 90 s, shared between callers |
+| PoolKey recovery, first time | 45 s by log scan | 0.3 ms with an index, unchanged without |
+| the quotes themselves | 2.0 s | 2.0 s |
+
+Repeat requests went from 10–12 s to 0.4–1.5 s. The listing is cached because a pool list is not a price: it changes when somebody opens a pool, not block by block. Every quote underneath it is still taken live at one pinned block, and the answer carries `poolListAgeMs` so a reader can see how old the list was instead of having to trust it. If the listing provider fails, the previous list is served and flagged `poolListStale` rather than failing the request.
+
+Making it faster exposed a second fault. `quoteLeg` cannot use the retrying RPC client — for this quoter a revert *is* the success path, and the answer arrives in the revert payload — so it had no protection against HTTP 429 at all. That was invisible while requests were slow. Once they were quick, three requests in four seconds reported `UNMEASURED` on three of four pools: the service got faster and started claiming it could not measure pools that are perfectly measurable. Only a rate limit is retried now, with a short backoff, because the call is pinned to a block and a long wait risks that block ageing out of state before the second leg is asked.
+
+### Prebuilt key index (optional)
+
+A v4 pool id is `keccak(PoolKey)` and is not reversible, so a key has to be read from the `Initialize` event that created the pool. Those events never change, so they only need reading once:
+
+```
+node arastirma/indeks-derle.js <pools.json> data/havuz-indeksi.bin
+ARC_POOL_INDEX=data/havuz-indeksi.bin npm start
+```
+
+The source is any dictionary of `poolId -> {c0, c1, f, t, h}` gathered from `Initialize`. The output is fixed-width records sorted by pool id, so a lookup is a binary search over the file — about eighteen 100-byte reads, nothing parsed, and no resident memory, which matters for a service that otherwise runs in 21 MB. 216,839 pools fit in 21 MB.
+
+Every record is hashed and checked against its pool id when it is written **and** again when it is read. The index is never trusted on its word: a wrong key would produce a confident wrong quote, which is worse than a slow correct one. With `ARC_POOL_INDEX` unset everything behaves exactly as before — the index is an accelerator, never a dependency, and the on-chain registry and log scan remain underneath it.
 
 ## License
 

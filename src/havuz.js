@@ -197,6 +197,76 @@ function rememberKey(poolId, key) {
   }
 }
 
+/* ---- a local seekable index, if one was built ---------------------------
+ *
+ * Recovering a key by log scan was measured at 45 s for a token nobody had
+ * queried before, and that is the whole of the remaining cold-start cost.
+ * The Initialize events only ever need reading once, so if this machine has
+ * already read them, a lookup should not pay for them again.
+ *
+ * The file is sorted fixed-width records, so this is a binary search over
+ * the file itself: ~18 reads of 100 bytes, nothing parsed, nothing cached in
+ * memory. A 21 MB index therefore costs no resident memory at all, which
+ * matters for a service that otherwise runs in 21 MB.
+ *
+ * The index is NOT trusted on its word. Every key it returns is hashed and
+ * compared against the pool id before use — a wrong key would yield a
+ * confident wrong quote, which is worse than a slow correct one. The check
+ * is a local keccak and costs nothing.
+ *
+ * Optional by design: with ARC_POOL_INDEX unset, everything below behaves
+ * exactly as before. The index is an accelerator, never a dependency. */
+const INDEX_FILE = process.env.ARC_POOL_INDEX || "";
+const REC = 100;
+let _ix = null;   /* { fd, count } | false */
+
+function indexHandle() {
+  if (_ix !== null) return _ix;
+  _ix = false;
+  if (!INDEX_FILE) return _ix;
+  try {
+    const st = fs.statSync(INDEX_FILE);
+    if (st.size > 0 && st.size % REC === 0) {
+      _ix = { fd: fs.openSync(INDEX_FILE, "r"), count: st.size / REC };
+    }
+  } catch (e) { _ix = false; }
+  return _ix;
+}
+
+function localIndexLookup(poolId) {
+  const ix = indexHandle();
+  if (!ix) return null;
+  const want = Buffer.from(String(poolId).replace(/^0x/, ""), "hex");
+  if (want.length !== 32) return null;
+
+  const rec = Buffer.alloc(REC);
+  let lo = 0, hi = ix.count - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    fs.readSync(ix.fd, rec, 0, REC, mid * REC);
+    const cmp = Buffer.compare(rec.subarray(0, 32), want);
+    if (cmp === 0) {
+      const key = {
+        currency0: "0x" + rec.subarray(32, 52).toString("hex"),
+        currency1: "0x" + rec.subarray(52, 72).toString("hex"),
+        fee: rec.readUInt32BE(72),
+        tickSpacing: rec.readInt32BE(76),
+        hooks: "0x" + rec.subarray(80, 100).toString("hex")
+      };
+      /* Verify rather than trust. */
+      try {
+        const { keccak256 } = require("ethers");
+        const enc = coder().encode(["tuple(address,address,uint24,int24,address)"],
+          [[key.currency0, key.currency1, key.fee, key.tickSpacing, key.hooks]]);
+        if (keccak256(enc).toLowerCase() !== String(poolId).toLowerCase()) return null;
+      } catch (e) { return null; }
+      return key;
+    }
+    if (cmp < 0) lo = mid + 1; else hi = mid - 1;
+  }
+  return null;
+}
+
 /* Ask the on-chain registry. One eth_call, no range limits, no rate-limit
  * exposure worth worrying about, and the answer is shared with everyone else
  * who has ever looked a pool up — which is the entire point of putting it on
@@ -238,6 +308,12 @@ async function registryLookup(poolId) {
 async function poolKeyOf(pool) {
   const cached = loadKeys()[pool.poolId];
   if (cached) return Object.assign({}, cached, { fromCache: true });
+
+  const yerel = localIndexLookup(pool.poolId);
+  if (yerel) {
+    rememberKey(pool.poolId, yerel);
+    return Object.assign({}, yerel, { fromLocalIndex: true });
+  }
 
   const zincirden = await registryLookup(pool.poolId);
   if (zincirden) {
@@ -396,6 +472,6 @@ async function roundTrip(key, sizeUsdc, blockTag) {
 }
 
 module.exports = {
-  poolsOfToken, poolsOfTokenMeta, poolKeyOf, registryLookup,
+  poolsOfToken, poolsOfTokenMeta, poolKeyOf, registryLookup, localIndexLookup,
   roundTrip, quoteLeg, encodeQuote, gt
 };
