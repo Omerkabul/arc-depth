@@ -199,9 +199,33 @@ Eight of eight correct.
 
 ### Filling it
 
-Eight pools are registered, which is enough to prove the thing works and not
-enough to be useful to a stranger. The path to filling it is measured rather
-than hoped for.
+**225 pools are registered.** The first eight were there to prove the contract
+works; the rest are the pools that actually trade, written in two transactions
+after the cost had been measured rather than estimated.
+
+Which pools, and why not all of them: Arc has 216,839 v4 pools and most are
+dead launches nobody will ever quote. The candidate list comes from
+`arastirma/aktif-havuz-topla.js`, which merges three GeckoTerminal listings —
+top by volume, trending, and newest — because each answers a different version
+of "might somebody ask about this one" and the overlap between them is small.
+That produced 320 pools, of which 219 had a key in the local index; the other
+101 are newer than the index or are v3 pools, which this registry is not for.
+
+What it cost, on mainnet:
+
+| batch | keys | gas | cost |
+|---:|---:|---:|---:|
+| 1 | 150 | 12,992,245 | 0.25984 USDC |
+| 2 | 69 | 3,996,626 | 0.07993 USDC |
+| | **219** | | **0.33978 USDC** |
+
+0.001551 USDC per key, and the registry went from 8 entries to 225 — two of
+the 219 were already present, which is the point of `registerMany` skipping
+ids it already knows rather than paying to overwrite them. Reading seven of
+them back from the chain and re-hashing each key against its pool id: seven of
+seven matched.
+
+The path to filling the rest is measured rather than hoped for.
 
 A separate Arc pool index built for this project holds **215,943 complete
 PoolKeys**, recovered from `PoolManager.Initialize` events between blocks
@@ -231,11 +255,25 @@ Past about a hundred the per-key cost stops improving, because the fixed
 21,000-gas transaction overhead has already been amortised away and what
 remains is one cold storage write per key.
 
-At 0.0014 USDC per key, a thousand pools costs about **1.40 USDC** and the full
-index would cost roughly **300 USDC** — which is why filling it is incremental
-and demand-driven rather than a single bulk load. The sensible order is newest
-first: a newborn pool is the case this project exists for, and it is what the
-service is actually asked about.
+At the 0.001551 USDC per key actually paid, a thousand pools costs about
+**1.55 USDC** and the full index would cost roughly **336 USDC** — which is why
+filling it is incremental and demand-driven rather than a single bulk load. The
+sensible order is the one used here: pools that trade, newest included, because
+a newborn pool is the case this project exists for and it is what the service
+is actually asked about.
+
+To add more:
+
+```
+node arastirma/aktif-havuz-topla.js          # refresh the candidate list
+node contracts/doldur.js                     # dry run, costs nothing
+node contracts/doldur.js --uygula --butce 1  # spend at most 1 USDC
+```
+
+The script is dry-run by default, stops *before* the batch that would cross
+the budget rather than after it, and hashes every key against its pool id
+before sending. Re-running it is safe: ids already present are skipped on
+chain, not rewritten.
 
 ### Does the hook take a cut? Measured: no large one
 
