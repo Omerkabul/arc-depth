@@ -69,8 +69,8 @@ async function measure(token, sizeUsdc) {
     coverage: "Uniswap v4 pools only. Arc also has v3 pools and they are NOT covered here."
   };
 
-  let pools;
-  try { pools = await H.poolsOfToken(token); }
+  let pools, listMeta;
+  try { listMeta = await H.poolsOfTokenMeta(token); pools = listMeta.pools; }
   catch (e) {
     answer.sellable = null;
     answer.result = "UNMEASURED";
@@ -79,6 +79,16 @@ async function measure(token, sizeUsdc) {
     return answer;
   }
   answer.poolsFound = pools.length;
+  /* How old the pool LISTING is. Every quote below is still taken live at the
+   * pinned block; only the set of pools to quote may lag by this much. */
+  answer.poolListAgeMs = listMeta.ageMs;
+  if (listMeta.stale) {
+    answer.poolListStale = true;
+    answer.poolListNote = "The pool listing provider failed for this request (" +
+      String(listMeta.error).slice(0, 60) + "), so the previous listing was used. " +
+      "A pool opened in the last " + Math.round(listMeta.ageMs / 1000) + " s could be missing. " +
+      "The quotes themselves are live.";
+  }
   if (!pools.length) {
     answer.sellable = null;
     answer.result = "NO_POOLS_FOUND";

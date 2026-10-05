@@ -86,7 +86,55 @@ async function gt(path, attempt) {
 }
 
 /* ---- 1) a token's pools ------------------------------------------------- */
+/* The listing is cached for a short window. See the note at the top of this
+ * change: the upstream rate limit, not the chain, was setting the p90. */
+const POOLS_TTL_MS = Number(process.env.POOLS_TTL_MS || 90000);
+const POOLS_MAX = Number(process.env.POOLS_CACHE_MAX || 500);
+const _poolCache = new Map();   /* token -> { at, pools } */
+const _inflight = new Map();    /* token -> Promise, so N callers make 1 call */
+
+function _remember(k, pools) {
+  _poolCache.set(k, { at: Date.now(), pools });
+  if (_poolCache.size > POOLS_MAX) {
+    /* Oldest first; Map preserves insertion order and entries are re-set on
+     * refresh, so the front of the iterator is the least recently written. */
+    const drop = _poolCache.size - POOLS_MAX;
+    let i = 0;
+    for (const key of _poolCache.keys()) { if (i++ >= drop) break; _poolCache.delete(key); }
+  }
+}
+
+/* Returns { pools, ageMs, stale }. ageMs is 0 for a fresh upstream read.
+ * stale is true only when the upstream failed and a previous list was used,
+ * which the caller is expected to surface rather than hide. */
+async function poolsOfTokenMeta(token) {
+  const k = String(token).toLowerCase();
+  const hit = _poolCache.get(k);
+  if (hit && Date.now() - hit.at < POOLS_TTL_MS) {
+    return { pools: hit.pools, ageMs: Date.now() - hit.at, stale: false };
+  }
+  if (_inflight.has(k)) return _inflight.get(k);
+
+  const job = _fetchPools(k).then(
+    (pools) => { _remember(k, pools); _inflight.delete(k); return { pools, ageMs: 0, stale: false }; },
+    (err) => {
+      _inflight.delete(k);
+      /* A rate limit is not an answer. If a previous list exists, serving it
+       * with its age attached is more useful and more honest than failing. */
+      const old = _poolCache.get(k);
+      if (old) return { pools: old.pools, ageMs: Date.now() - old.at, stale: true, error: String(err.message) };
+      throw err;
+    }
+  );
+  _inflight.set(k, job);
+  return job;
+}
+
 async function poolsOfToken(token) {
+  return (await poolsOfTokenMeta(token)).pools;
+}
+
+async function _fetchPools(token) {
   const d = await gt("/networks/arc/tokens/" + token + "/pools");
   const list = (d && d.data) || [];
   return list.map((x) => {
@@ -280,10 +328,14 @@ function encodeQuote(key, zeroForOne, amountIn) {
   return Z.ARC.quoterSelector + body.slice(2);
 }
 
+const QUOTE_RATE_TRIES = Number(process.env.QUOTE_RATE_TRIES || 4);
+
 async function quoteLeg(key, zeroForOne, amountIn, blockTag) {
   const data = encodeQuote(key, zeroForOne, amountIn);
   const call = { to: Z.ARC.quoter, data };
   const tag = blockTag != null ? "0x" + Number(blockTag).toString(16) : "latest";
+  let rateHits = 0;
+  for (;;) {
   try {
     const out = await Z.rpc("eth_call", [call, tag]);
     if (out && out !== "0x") {
@@ -292,6 +344,15 @@ async function quoteLeg(key, zeroForOne, amountIn, blockTag) {
     }
     return { reason: "empty response" };
   } catch (e) {
+    /* A rate limit is not an answer from the pool — it is the endpoint
+     * declining to ask. Retry it, briefly, before falling through to the
+     * revert decoding below. */
+    if (e.rateLimited && rateHits < QUOTE_RATE_TRIES) {
+      rateHits++;
+      const bekle = Math.min(e.retryAfterMs || 600 * Math.pow(2, rateHits - 1), 5000);
+      await new Promise((r) => setTimeout(r, bekle));
+      continue;
+    }
     /* Some nodes put revert data on the error object, others in the message. */
     const blob = String((e && (e.data || e.message)) || "");
     const m = /0x[0-9a-fA-F]{64,}/.exec(blob);
@@ -302,6 +363,7 @@ async function quoteLeg(key, zeroForOne, amountIn, blockTag) {
     }
     /* No decodable payload: the CALL failed, the pool did not speak. */
     return { unmeasured: true, reason: "call failed: " + String(e.message).slice(0, 60) };
+  }
   }
 }
 
@@ -333,4 +395,7 @@ async function roundTrip(key, sizeUsdc, blockTag) {
   };
 }
 
-module.exports = { poolsOfToken, poolKeyOf, registryLookup, roundTrip, quoteLeg, encodeQuote, gt };
+module.exports = {
+  poolsOfToken, poolsOfTokenMeta, poolKeyOf, registryLookup,
+  roundTrip, quoteLeg, encodeQuote, gt
+};
