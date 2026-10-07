@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Arc Depth · FTHM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#090a0c; --panel:#12141a; --panel2:#171a21; --raise:#1d212a;
+  --line:#242934; --line2:#2f3542;
+  --tx:#e9ebf0; --dim:#8d95a4; --dim2:#646c7a;
+  --acc:#4fe3a3; --acc-dim:#1d7a58; --acc-bg:rgba(79,227,163,.10);
+  --vio:#7d8cff; --vio-bg:rgba(125,140,255,.11);
+  --warn:#ffb65c; --bad:#ff6f6f;
+  --r:15px; --r2:11px;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);
+  font:400 15px/1.55 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{max-width:1040px;margin:0 auto;padding:0 18px}
+.mono{font-family:var(--mono);font-size:.92em}
+.hid{display:none!important}
+
+header.top{border-bottom:1px solid var(--line);background:rgba(9,10,12,.9);
+  backdrop-filter:blur(10px);position:sticky;top:0;z-index:40}
+.topin{display:flex;align-items:center;gap:14px;height:62px}
+.brand{display:flex;align-items:center;gap:10px;font:700 16px Inter,sans-serif}
+.mark{width:22px;height:22px;border-radius:7px;
+  background:linear-gradient(135deg,var(--acc),var(--vio))}
+.spacer{flex:1}
+.wbtn{background:var(--panel2);border:1px solid var(--line2);color:var(--tx);
+  border-radius:var(--r2);padding:9px 14px;font:600 13.5px Inter,sans-serif;cursor:pointer}
+.wbtn:hover{background:var(--raise)}
+.wbtn.conn{border-color:var(--acc-dim)}
+.wdot{display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--acc);margin-right:7px}
+
+h1{font:800 30px/1.15 Inter,sans-serif;margin:30px 0 6px;letter-spacing:-.02em}
+h2{font:700 17px Inter,sans-serif;margin:0 0 12px}
+.sub{color:var(--dim);font-size:14.5px;margin:0 0 22px;max-width:70ch}
+
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:860px){.cols{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+
+.ca{display:flex;align-items:center;gap:10px;background:var(--panel2);
+  border:1px solid var(--line2);border-radius:var(--r2);padding:12px 14px;margin:0 0 20px}
+.ca code{font-family:var(--mono);font-size:13px;word-break:break-all;flex:1}
+.ca button{background:var(--raise);border:1px solid var(--line2);color:var(--tx);
+  border-radius:9px;padding:7px 11px;font:600 12px Inter,sans-serif;cursor:pointer;white-space:nowrap}
+
+.rows{display:flex;flex-direction:column;gap:7px;font-size:13.5px}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+  padding-bottom:7px;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0;padding-bottom:0}
+.row>span{color:var(--dim)}
+.row b{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.row .note{display:block;color:var(--dim2);font-size:11.5px;font-weight:400;margin-top:2px}
+
+.field{margin:0 0 12px}
+label{display:block;font:600 12.5px Inter,sans-serif;color:var(--dim);margin:0 0 6px}
+input{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--tx);
+  border-radius:var(--r2);padding:11px 13px;font:500 15px var(--mono)}
+input:focus{outline:none;border-color:var(--line2);background:var(--raise)}
+.hint{color:var(--dim2);font-size:12px;margin-top:6px;line-height:1.5}
+
+.btn{width:100%;background:var(--acc);color:#04120c;border:0;border-radius:var(--r2);
+  padding:12px;font:700 14.5px Inter,sans-serif;cursor:pointer}
+.btn:hover:not(:disabled){filter:brightness(1.08)}
+.btn:disabled{opacity:.38;cursor:not-allowed}
+.btn.alt{background:var(--panel2);color:var(--tx);border:1px solid var(--line2)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+
+.prog{margin:16px 0 4px}
+.track{height:7px;background:var(--raise);border-radius:99px;overflow:hidden}
+.fill{height:100%;background:linear-gradient(90deg,var(--acc-dim),var(--acc));border-radius:99px}
+.lab{display:flex;justify-content:space-between;font-size:12px;color:var(--dim2);margin-top:6px}
+
+.msg{border-radius:var(--r2);padding:11px 13px;font-size:13.5px;margin-top:12px;line-height:1.5}
+.msg.info{background:var(--vio-bg);border:1px solid rgba(125,140,255,.25)}
+.msg.ok{background:var(--acc-bg);border:1px solid rgba(79,227,163,.28)}
+.msg.err{background:rgba(255,111,111,.08);border:1px solid rgba(255,111,111,.26);color:#ffb3b3}
+.msg.uyari{background:rgba(255,182,92,.08);border:1px solid rgba(255,182,92,.28);color:#ffd9a8}
+
+.ort{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;
+  justify-content:center;z-index:60;padding:18px}
+.kutu{background:var(--panel);border:1px solid var(--line2);border-radius:var(--r);
+  width:100%;max-width:400px;padding:18px}
+.kutubas{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.kapat{background:none;border:0;color:var(--dim);font-size:24px;cursor:pointer;line-height:1}
+.cz{display:flex;align-items:center;gap:11px;width:100%;background:var(--panel2);
+  border:1px solid var(--line);border-radius:var(--r2);padding:11px 13px;margin-bottom:8px;
+  color:var(--tx);font:600 14px Inter,sans-serif;cursor:pointer;text-align:left}
+.cz:hover{background:var(--raise)}
+.cz img{width:24px;height:24px;border-radius:6px}
+
+footer{border-top:1px solid var(--line);margin-top:44px;padding:26px 0 40px;
+  color:var(--dim2);font-size:12.5px}
+.adr{display:flex;flex-direction:column;gap:5px;margin-top:10px;font-family:var(--mono);font-size:11.5px}
+.adr a{color:var(--dim)}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap topin">
+    <div class="brand"><div class="mark"></div>Arc Depth</div>
+    <div class="spacer"></div>
+    <button id="wallet" class="wbtn">Cüzdan bağla</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <h1>FTHM</h1>
+  <p class="sub">
+    Fiyatı kimse belirlemiyor; Uniswap belirliyor. Piyasa payının tamamı —
+    <strong>500.000.000 FTHM</strong> — havuzda, kalıcı kilitli, üç kademeli
+    bir merdiven halinde. <strong>Protokol havuza tek dolar koymadı;</strong>
+    içindeki para ne kadarsa onu alıcılar koydu.
+  </p>
+
+  <div class="ca">
+    <code id="ca">—</code>
+    <button id="kopya">kopyala</button>
+    <button id="exp">explorer</button>
+  </div>
+
+  <div id="uyari"></div>
+  <div id="derinlik"></div>
+
+  <div class="cols">
+    <div class="panel">
+      <h2>Al / Sat · Uniswap havuzu</h2>
+      <div class="rows" id="havuzDurum"></div>
+
+      <div class="field" style="margin-top:16px">
+        <label for="alMik">Ödenecek USDC</label>
+        <input id="alMik" placeholder="1" inputmode="decimal" spellcheck="false">
+        <div class="hint" id="alNot">—</div>
+      </div>
+      <div class="two">
+        <button class="btn alt" id="alOnay" disabled>USDC onayla</button>
+        <button class="btn" id="al" disabled>Al</button>
+      </div>
+
+      <div class="field" style="margin-top:18px">
+        <label for="satMik">Satılacak FTHM</label>
+        <input id="satMik" placeholder="0" inputmode="decimal" spellcheck="false">
+        <div class="hint" id="satNot">—</div>
+      </div>
+      <div class="two">
+        <button class="btn alt" id="satOnay" disabled>FTHM onayla</button>
+        <button class="btn alt" id="sat" disabled>Sat</button>
+      </div>
+      <div id="islemMesaj"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Stake</h2>
+      <div class="rows" id="stakeDurum"></div>
+
+      <div class="field" style="margin-top:16px">
+        <label for="stMik">FTHM miktarı</label>
+        <input id="stMik" placeholder="0" inputmode="decimal" spellcheck="false">
+        <div class="hint">
+          Alt sınır yok — ne kadar koyarsan koy, satış ücretlerinden USDC
+          payı ve havuzdan FTHM kazanırsın. <strong>Oy kullanmak</strong>
+          için 50.000 gerekiyor. Kilit yok, her an çözebilirsin.
+        </div>
+      </div>
+      <div class="two">
+        <button class="btn alt" id="stOnay" disabled>FTHM onayla</button>
+        <button class="btn" id="st" disabled>Stake et</button>
+      </div>
+      <div class="two" style="margin-top:9px">
+        <button class="btn alt" id="stCoz" disabled>Çöz</button>
+        <button class="btn alt" id="stAl" disabled>Ödülü al</button>
+      </div>
+      <div id="stakeMesaj"></div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:16px">
+    <h2>Merdiven</h2>
+    <div class="rows" id="merdiven"></div>
+  </div>
+
+  <div class="panel" style="margin-top:16px">
+    <h2>Arz</h2>
+    <div class="rows" id="arz"></div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    Arc ana ağı, chain 5042. Hiçbir kontrat yükseltilebilir değil; sahip,
+    duraklatma, sweep, withdraw ve mint fonksiyonu yok. Havuz likiditesi
+    çıkarılamaz — hook her çıkarma denemesini, bizimki dahil, reddeder.
+    <div class="adr" id="adresler"></div>
+  </div>
+</footer>
+
+<div class="ort hid" id="cuzdanOrt">
+  <div class="kutu">
+    <div class="kutubas"><strong>Cüzdan seç</strong>
+      <button class="kapat" id="cuzdanKapat">&times;</button></div>
+    <div id="cuzdanListe"></div>
+  </div>
+</div>
+<script type="module">
+import { BrowserProvider, Contract, JsonRpcProvider, parseUnits, MaxUint256 }
+  from "https://cdn.jsdelivr.net/npm/ethers@6.13.4/+esm";
+
+const ARC = { chainId:5042, chainIdHex:"0x13b2", name:"Arc",
+  rpc:"https://rpc.mainnet.arc.io", explorer:"https://explorer.arc.io",
+  currency:{ name:"USDC", symbol:"USDC", decimals:18 } };
+
+const A = {
+  token:   "0x8c2016b8DbB9034c2Fe173000639A9a1380b26AE",
+  stake:   "0xAbD31A537E089D8a12b928aF7837C148dE2Bd2de",
+  acici:   "0x0EEE2d24a18ad48960935D08862059Ac07171281",
+  hook:    "0x72fd3c2eE8A499E97D87e2a642B7DFd908D58A44",
+  governor:"0x1084AD3162afC8A62736D604598377D8e6Be8D95",
+  vesting: "0x386968f036cbc0d0965C81bf1fCEd0b40EE11E14",
+  usdc:    "0x3600000000000000000000000000000000000000",
+  poolManager:"0x8366a39CC670B4001A1121B8F6A443A643e40951",
+  router:  "0x7550058C3F4D8839eBc8AcCB96959Fe69C109581",
+  havuzId: "0x06bdf3466fb9f017bf3e68bedfbc220d3c0bee3f73f584de897106f33a388f59",
+  fee: 0, spacing: 60, acilisTick: 387420,
+  merdiven: [{"ad":"ic","tick":385620,"token":"300000000000000000000000000"},{"ad":"orta","tick":380460,"token":"100000000000000000000000000"},{"ad":"dis","tick":-887220,"token":"100000000000000000000000000"}],
+  /* The previous token, cancelled. Named so nobody buys it by mistake. */
+  eskiToken: "0xF67Eea3A140305dBC243e611CFa421c76F3C608B"
+};
+
+/* FTHM sorts above USDC, so it is currency1 and a buy is zeroForOne.
+   Derived rather than written down: getting it backwards would quote a
+   sell on the buy button. */
+const TOKEN_SIFIRINCI = A.token.toLowerCase() < A.usdc.toLowerCase();
+const KEY = [ TOKEN_SIFIRINCI ? A.token : A.usdc,
+              TOKEN_SIFIRINCI ? A.usdc : A.token,
+              A.fee, A.spacing, A.hook ];
+const ALIS_ZFO = !TOKEN_SIFIRINCI;
+
+const ABI = {
+  erc20:[
+    "function balanceOf(address) view returns (uint256)",
+    "function allowance(address,address) view returns (uint256)",
+    "function approve(address,uint256) returns (bool)",
+    "function totalSupply() view returns (uint256)",
+    "function decimals() view returns (uint8)"
+  ],
+  router:["function swap((address,address,uint24,int24,address) key,bool zeroForOne,uint256 amountIn,uint256 minOut) payable returns (uint256)"],
+  pm:["function extsload(bytes32) view returns (bytes32)"],
+  stake:[
+    "function stake(uint256)","function unstake(uint256)",
+    "function claim() returns (uint256)",
+    "function stakedOf(address) view returns (uint256)",
+    "function totalStaked() view returns (uint256)",
+    "function pending(address) view returns (uint256)",
+    "function pendingToken(address) view returns (uint256)",
+    "function oyGucu(address) view returns (uint256)",
+    "function MIN_OY_GUCU() view returns (uint256)",
+    "function emisyonKalan() view returns (uint256)",
+    "function emisyonDagitilan() view returns (uint256)"
+  ]
+};
+
+const $ = (i) => document.getElementById(i);
+const read = new JsonRpcProvider(ARC.rpc,{chainId:ARC.chainId,name:"arc"},
+  {staticNetwork:true,batchMaxCount:1});
+const esc = (s) => String(s==null?"":s).replace(/[&<>"]/g,(c)=>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const kisa = (a) => String(a).slice(0,6)+"…"+String(a).slice(-4);
+const say = (v) => Number(String(v).replace(",","."));
+const satir = (l,v,not) => '<div class="row"><span>'+l+
+  (not?'<span class="note">'+not+"</span>":"")+"</span><b>"+v+"</b></div>";
+const mesaj = (el,tip,html) => { $(el).innerHTML='<div class="msg '+tip+'">'+html+"</div>"; };
+const txLink = (h) => '<a href="'+ARC.explorer+"/tx/"+h+'" target="_blank" rel="noopener">işlemi gör</a>';
+const nd = (x,d=0) => Number(x).toLocaleString("tr-TR",{maximumFractionDigits:d});
+const nalp = (x) => { const v=Number(x); if(v===0) return "0";
+  if(v>=0.01) return nd(v,2);
+  return v.toLocaleString("tr-TR",{maximumSignificantDigits:2}); };
+const usd = (x,d=2) => "$"+Number(x).toLocaleString("tr-TR",
+  {minimumFractionDigits:d,maximumFractionDigits:d});
+
+function hataMetni(e){
+  const s = String((e&&(e.shortMessage||e.reason||e.message))||e);
+  if (/user rejected|denied/i.test(s)) return "İşlem cüzdanda reddedildi.";
+  if (/insufficient funds/i.test(s)) return "Bakiye yetersiz — gaz için de USDC gerekiyor.";
+  if (/Kayma|minOut|slippage/i.test(s)) return "Fiyat beklediğinden fazla oynadı, işlem geri çevrildi.";
+  if (/allowance|transferFrom/i.test(s)) return "Önce onay ver (soldaki onayla düğmesi).";
+  return s.length>160 ? s.slice(0,160)+"…" : s;
+}
+
+let saglayici=null, signer=null, hesap=null, USDC_OND=6;
+
+/* ---- wallets: EIP-6963, then whatever injected itself ----------- */
+const cuzdanlar = new Map();
+window.addEventListener("eip6963:announceProvider",(e)=>{
+  const d=e.detail; if(d&&d.info&&d.provider) cuzdanlar.set(d.info.uuid,d);
+});
+window.dispatchEvent(new Event("eip6963:requestProvider"));
+
+function cuzdanListesi(){
+  const el=$("cuzdanListe");
+  const hepsi=[...cuzdanlar.values()];
+  if(!hepsi.length && window.ethereum)
+    hepsi.push({info:{name:"Tarayıcı cüzdanı",icon:""},provider:window.ethereum});
+  if(!hepsi.length){
+    el.innerHTML='<div class="msg err">Cüzdan bulunamadı. MetaMask gibi bir '+
+      'cüzdan kurup sayfayı yenile.</div>'; return;
+  }
+  el.innerHTML=hepsi.map((c,i)=>'<button class="cz" data-i="'+i+'">'+
+    (c.info.icon?'<img src="'+esc(c.info.icon)+'" alt="">':"")+esc(c.info.name)+"</button>").join("");
+  for(const b of el.querySelectorAll(".cz"))
+    b.addEventListener("click", async ()=>{
+      kapa("cuzdanOrt");
+      try{ await bagla(hepsi[Number(b.dataset.i)].provider); }
+      catch(e){ mesaj("islemMesaj","err",esc(hataMetni(e))); }
+    });
+}
+const ac=(id)=>$(id).classList.remove("hid");
+const kapa=(id)=>$(id).classList.add("hid");
+$("cuzdanKapat").addEventListener("click",()=>kapa("cuzdanOrt"));
+$("cuzdanOrt").addEventListener("click",(e)=>{ if(e.target===$("cuzdanOrt")) kapa("cuzdanOrt"); });
+
+async function bagla(eip1193){
+  await eip1193.request({method:"eth_requestAccounts"});
+  const bp=new BrowserProvider(eip1193);
+  const net=await bp.getNetwork();
+  if(Number(net.chainId)!==ARC.chainId){
+    try{ await eip1193.request({method:"wallet_switchEthereumChain",
+      params:[{chainId:ARC.chainIdHex}]}); }
+    catch(sw){
+      if(sw&&(sw.code===4902||/Unrecognized chain|Unsupported chain/i.test(String(sw.message)))){
+        await eip1193.request({method:"wallet_addEthereumChain",params:[{
+          chainId:ARC.chainIdHex,chainName:ARC.name,rpcUrls:[ARC.rpc],
+          nativeCurrency:ARC.currency,blockExplorerUrls:[ARC.explorer]}]});
+      } else throw sw;
+    }
+  }
+  saglayici=eip1193;
+  signer=await (new BrowserProvider(eip1193)).getSigner();
+  hesap=await signer.getAddress();
+  $("wallet").innerHTML='<span class="wdot"></span>'+kisa(hesap);
+  $("wallet").classList.add("conn");
+  for(const b of ["alOnay","al","satOnay","sat","stOnay","st","stCoz","stAl"])
+    $(b).disabled=false;
+  if(eip1193.on){
+    eip1193.on("accountsChanged",()=>location.reload());
+    eip1193.on("chainChanged",()=>location.reload());
+  }
+  oku();
+}
+$("wallet").addEventListener("click",()=>{
+  if(hesap){ navigator.clipboard&&navigator.clipboard.writeText(hesap); return; }
+  cuzdanListesi(); ac("cuzdanOrt");
+});
+
+$("ca").textContent=A.token;
+$("exp").addEventListener("click",()=>window.open(ARC.explorer+"/address/"+A.token,"_blank","noopener"));
+$("kopya").addEventListener("click", async ()=>{
+  try{ await navigator.clipboard.writeText(A.token); $("kopya").textContent="kopyalandı"; }
+  catch(e){ $("kopya").textContent="kopyalanamadı"; }
+  setTimeout(()=>{ $("kopya").textContent="kopyala"; },1600);
+});
+
+$("adresler").innerHTML=[
+  ["token",A.token],["havuz açıcı",A.acici],["hook",A.hook],["stake",A.stake],
+  ["yönetişim",A.governor],["vesting",A.vesting],["yönlendirici",A.router]
+].map(([ad,adr])=>'<a href="'+ARC.explorer+"/address/"+adr+
+  '" target="_blank" rel="noopener">'+ad+" · "+adr+"</a>").join("");
+
+/* ---- reads ------------------------------------------------------- */
+const stakeR=()=>new Contract(A.stake,ABI.stake,read);
+const tokR=()=>new Contract(A.token,ABI.erc20,read);
+const usdcR=()=>new Contract(A.usdc,ABI.erc20,read);
+const pmR=()=>new Contract(A.poolManager,ABI.pm,read);
+const routerR=()=>new Contract(A.router,ABI.router,read);
+
+const Q96 = 2**96;
+/* v4 keeps pools in a mapping at slot 6; slot0 holds sqrtPriceX96 in the
+   low 160 bits and slot0+3 holds the active liquidity. Read directly
+   because there is no getter. */
+async function havuzOku(){
+  const { keccak256, AbiCoder } = await import("https://cdn.jsdelivr.net/npm/ethers@6.13.4/+esm");
+  const slot = keccak256(AbiCoder.defaultAbiCoder().encode(["bytes32","uint256"],[A.havuzId,6]));
+  const raw = BigInt(await pmR().extsload(slot));
+  const likSlot = "0x"+(BigInt(slot)+3n).toString(16).padStart(64,"0");
+  const lik = BigInt(await pmR().extsload(likSlot));
+  const sqrt = raw & ((1n<<160n)-1n);
+  const sqrtP = Number(sqrt)/Q96;
+  /* FTHM is currency1, so the pool price is token-wei per USDC unit and the
+     dollar price is its reciprocal scaled by the decimal gap. Written out
+     because inverting it once already produced a confident wrong answer. */
+  const fiyat = sqrtP>0 ? (1/(sqrtP*sqrtP))*1e12 : 0;
+  /* USDC is currency0, so its virtual reserve — what sets slippage — is
+     L/sqrtP, not L*sqrtP. */
+  const derinlik = (sqrtP>0 && lik>0n) ? (Number(lik)/sqrtP)/1e6 : 0;
+  return { sqrtP, fiyat, lik, derinlik };
+}
+
+/* How much USDC the ladder actually holds, rung by rung. A position over
+   [a,b] holds currency0 = L*(1/sqrt(p) - 1/sqrt(b)) for the part of it
+   the price has passed. This is the money a seller could be paid, and it
+   is not the market cap. */
+function gercekPara(sqrtP){
+  let toplam = 0;
+  for (const r of A.merdiven) {
+    const a = Math.sqrt(Math.pow(1.0001, r.tick));
+    const b = Math.sqrt(Math.pow(1.0001, r.ust !== undefined ? r.ust : A.acilisTick));
+    const N = Number(r.token)/1e18;
+    if (!(b > a)) continue;
+    const L = N / (1/a - 1/b) * 1;          // currency1 amount -> L, in float
+    const p = Math.min(Math.max(sqrtP, a), b);
+    toplam += L * (1/p - 1/b);
+  }
+  return toplam;
+}
+
+async function oku(){
+  try{
+    const h = await havuzOku();
+    const arz = await tokR().totalSupply();
+    const mcap = h.fiyat * (Number(arz)/1e18);
+
+    let benUsdc=0n, benTok=0n;
+    if (hesap) [benUsdc,benTok] = await Promise.all([
+      usdcR().balanceOf(hesap), tokR().balanceOf(hesap)]);
+
+    mesaj("uyari","info",
+      "<strong>Tek işlem yeri bu havuz.</strong> Eğri yok; piyasa payının "+
+      "tamamı burada ve kalıcı kilitli. Cüzdanından Uniswap'ta da aynı "+
+      "havuza düşersin — "+
+      '<a href="https://dexscreener.com/arc/'+A.havuzId+'" target="_blank" '+
+      'rel="noopener">DexScreener</a>.<br>'+
+      "Eski <b>DEPTH</b> tokeni <strong>iptal</strong> edildi ve o havuzda "+
+      "yalnızca $12 var; karıştırma — doğru adres yukarıdaki.");
+
+    const hd = (d) => h.derinlik>0 ? "%"+nd((1-h.derinlik/(h.derinlik+d))*100+0.5,2) : "—";
+    $("havuzDurum").innerHTML =
+      satir("fiyat", usd(h.fiyat,8).replace("$","$ "), "Uniswap belirliyor, biz değil") +
+      satir("piyasa değeri", usd(mcap,0)) +
+      satir("havuz derinliği", h.derinlik>0?usd(h.derinlik,0):"ilk alımla açılır",
+        "kaymayı bu belirler — bandın yoğunluğundan geliyor, yatırılan paradan değil") +
+      satir("$20 alımda kayma", hd(20), "hook ücreti dahil") +
+      satir("$1.000 alımda kayma", hd(1000)) +
+      satir("işlem ücreti","%0,50",
+        "satışta %0,15 kurucu · %0,15 stake · %0,20 derinlik — alışta tamamı derinliğe") +
+      (hesap ? satir("cüzdanındaki USDC", usd(Number(benUsdc)/1e6,2)) +
+               satir("cüzdanındaki FTHM", nalp(Number(benTok)/1e18)) : "");
+
+    await derinlikOku(h, mcap);
+    await merdivenOku(h);
+    await stakeOku();
+    await arzOku(arz);
+    await onizle();
+  }catch(err){
+    mesaj("islemMesaj","err","Zincire ulaşılamadı: "+esc(hataMetni(err)));
+  }
+}
+
+/* The number a price site cannot show you. */
+async function derinlikOku(h, mcap){
+  const para = gercekPara(h.sqrtP);
+  const kat = para>0 ? mcap/para : 0;
+  const sat2 = (miktar) => {
+    const deger = miktar * h.fiyat;
+    const cikan = Math.min(deger, para) * 0.995;
+    return "<tr><td>"+nd(miktar)+"</td><td>"+usd(deger,2)+"</td><td><strong>"+
+      usd(cikan,4)+"</strong></td></tr>";
+  };
+  $("derinlik").innerHTML =
+    '<div class="msg '+(para<50?"uyari":"info")+'" style="margin-bottom:20px">'+
+    "<strong>Satarsan ne alacağını buradan oku.</strong><br>"+
+    "Havuzda şu an gerçekten <strong>"+usd(para,2)+"</strong> var ve "+
+    "<strong>tamamını alıcılar koydu</strong> — biz sıfır koyduk. "+
+    (para<50
+      ? "Henüz çok az alım oldu, yani <strong>çıkış da o kadar.</strong> "+
+        "Bu bir kusur değil, para koymadan açmanın doğrudan sonucu: ilk "+
+        "doları alıcı koyar, satış karşılığı ondan sonra oluşur."
+      : "Piyasa değeri "+usd(mcap,0)+" görünüyor; aradaki fark <strong>"+
+        nd(kat)+" kat</strong>. Havuz, içinde olmayan parayı ödeyemez.")+
+    '<table style="width:100%;margin-top:12px;border-collapse:collapse;font-size:12.5px">'+
+    '<tr style="color:var(--dim)"><th style="text-align:left">satılan FTHM</th>'+
+    '<th style="text-align:left">fiyata göre</th>'+
+    '<th style="text-align:left">gerçekte alınan</th></tr>'+
+    [10000,100000,1000000].map(sat2).join("")+
+    "</table>"+
+    '<div style="margin-top:10px;color:var(--dim)">'+
+    "Her alım parasını havuzda bırakıyor ve çıkarılamıyor; yani bu rakam "+
+    "yalnızca artar. Alış ücretinin tamamı da kalıcı derinliğe dönüyor."+
+    "</div></div>";
+}
+
+async function merdivenOku(h){
+  const ad = { ic:"iç kademe", orta:"orta kademe", dis:"dış kademe" };
+  const satirlar = A.merdiven.map((r)=>{
+    const ust = 1/Math.pow(1.0001, r.tick) * 1e12 / 1e12;
+    const fiyatUst = (1/Math.pow(1.0001,r.tick))*1e12;
+    return satir(ad[r.ad]||r.ad, nd(Number(r.token)/1e18)+" FTHM",
+      "tavan $"+fiyatUst.toExponential(3)+" · tick "+r.tick);
+  }).join("");
+  $("merdiven").innerHTML = satirlar +
+    satir("toplam", nd(A.merdiven.reduce((a,r)=>a+Number(r.token)/1e18,0))+" FTHM",
+      "hepsi tek yönlü ve kalıcı kilitli — çıkarma fonksiyonu yok");
+}
+
+async function stakeOku(){
+  const s=stakeR();
+  const [toplam,taban,kalan,dagitilan]=await Promise.all([
+    s.totalStaked(), s.MIN_OY_GUCU(), s.emisyonKalan(), s.emisyonDagitilan()]);
+  let benim=0n,odulUsdc=0n,odulTok=0n,oy=0n;
+  if(hesap) [benim,odulUsdc,odulTok,oy]=await Promise.all([
+    s.stakedOf(hesap), s.pending(hesap), s.pendingToken(hesap), s.oyGucu(hesap)]);
+  const t=Number(toplam)/1e18, b=Number(benim)/1e18, tb=Number(taban)/1e18;
+  $("stakeDurum").innerHTML =
+    satir("toplam stake", t>0?nalp(t)+" FTHM":"0 — henüz kimse stake etmedi") +
+    satir("emisyon havuzu", nd(Number(kalan)/1e18)+" FTHM",
+      "30 yıl, 10 yılda yarılanır · dağıtılan "+nd(Number(dagitilan)/1e18)) +
+    satir("oy kullanma tabanı", nd(tb)+" FTHM") +
+    (hesap
+      ? satir("stake ettiğin", nalp(b)) +
+        satir("oy kullanabilir misin", Number(oy)>0
+          ? "evet · tabanın "+nalp(b-tb)+" üstünde"
+          : "hayır · "+nalp(Math.max(0,tb-b))+" FTHM daha gerekiyor") +
+        satir("USDC ödülün", usd(Number(odulUsdc)/1e6,6)) +
+        satir("FTHM ödülün", nalp(Number(odulTok)/1e18))
+      : satir("cüzdan","bağlı değil"));
+}
+
+async function arzOku(arz){
+  const t=tokR();
+  const [havuzB,stakeB,aciciB,vestB]=await Promise.all([
+    t.balanceOf(A.poolManager), t.balanceOf(A.stake),
+    t.balanceOf(A.acici), t.balanceOf(A.vesting)]);
+  const m=(x)=>nd(Number(x)/1e18);
+  $("arz").innerHTML =
+    satir("toplam arz", m(arz), "mint fonksiyonu yok — sadece azalabilir") +
+    satir("havuzda, kilitli", m(havuzB), "piyasa payı · çıkarılamaz") +
+    satir("stake emisyon havuzunda", m(stakeB), "30 yıla yayılı") +
+    satir("açıcıda bekleyen ücret", m(aciciB), "biriktir() ile derinliğe döner") +
+    satir("vesting (kurucu, 12 ay)", m(vestB)) +
+    satir("kurucu, serbest", "50.000.000", "bot cüzdanında, kilit yok");
+}
+
+/* ---- quotes ------------------------------------------------------ */
+/* The exact quote comes from running the swap against the real pool, which
+   needs a caller who holds the asset — so it is only available once a
+   wallet is connected. Without one the page says so instead of printing a
+   number it cannot stand behind. */
+async function onizle(){
+  const a = say($("alMik").value);
+  const s = say($("satMik").value);
+  if (!hesap) {
+    if (a>0) $("alNot").textContent="Kesin kota için cüzdanı bağla.";
+    else $("alNot").textContent="Bir tutar gir.";
+    if (s>0) $("satNot").textContent="Kesin kota için cüzdanı bağla.";
+    else $("satNot").textContent="Satacağın FTHM miktarını gir.";
+    return;
+  }
+  try{
+    const r = routerR();
+    if (a>0) {
+      const giris = parseUnits(String(a), USDC_OND);
+      const q = await r.swap.staticCall(KEY, ALIS_ZFO, giris, 0, { from: hesap });
+      $("alNot").innerHTML = "≈ <strong>"+nd(Number(q)/1e18)+" FTHM</strong> alırsın. "+
+        "%0,50 hook ücreti dahil; alışta ücretin tamamı havuz derinliğine gider.";
+    } else $("alNot").textContent="Bir tutar gir, ne kadar token alacağını hesaplayayım.";
+    if (s>0) {
+      const q = await r.swap.staticCall(KEY, !ALIS_ZFO, parseUnits(String(s),18), 0, { from: hesap });
+      $("satNot").innerHTML = "≈ <strong>"+usd(Number(q)/1e6,6)+"</strong> alırsın "+
+        "(ücret düşülmüş). Havuzda o kadar para yoksa işlem geri çevrilir.";
+    } else $("satNot").textContent="Satacağın FTHM miktarını gir.";
+  }catch(err){
+    if (a>0) $("alNot").textContent="Kota alınamadı — onay verilmemiş ya da bakiye yetersiz olabilir.";
+    if (s>0) $("satNot").textContent="Kota alınamadı — havuzda yeterli para olmayabilir.";
+  }
+}
+$("alMik").addEventListener("input", onizle);
+$("satMik").addEventListener("input", onizle);
+
+/* ---- writes ------------------------------------------------------ */
+const bekle = async (tx, el, ad) => {
+  mesaj(el,"info",ad+" gönderildi, onay bekleniyor… "+txLink(tx.hash));
+  await tx.wait();
+  mesaj(el,"ok","<strong>"+ad+" tamam.</strong> "+txLink(tx.hash));
+  await oku();
+};
+/* Slippage is the caller's: the router reverts below minOut rather than
+   filling at whatever the pool moved to. */
+const KAYMA_TOLERANS = 300n;   // 3,00%
+const altSinir = (q) => (q * (10000n - KAYMA_TOLERANS)) / 10000n;
+
+$("alOnay").addEventListener("click", async ()=>{
+  try{
+    mesaj("islemMesaj","info","Cüzdanda onay bekleniyor…");
+    const tx = await (new Contract(A.usdc,ABI.erc20,signer)).approve(A.router,MaxUint256);
+    await bekle(tx,"islemMesaj","USDC onayı");
+  }catch(e){ mesaj("islemMesaj","err",esc(hataMetni(e))); }
+});
+$("al").addEventListener("click", async ()=>{
+  try{
+    const v=say($("alMik").value);
+    if(!(v>0)){ mesaj("islemMesaj","err","Bir tutar gir."); return; }
+    const giris=parseUnits(String(v),USDC_OND);
+    mesaj("islemMesaj","info","Kota alınıyor…");
+    const q=await routerR().swap.staticCall(KEY,ALIS_ZFO,giris,0,{from:hesap});
+    mesaj("islemMesaj","info","Alım gönderiliyor…");
+    const tx=await (new Contract(A.router,ABI.router,signer))
+      .swap(KEY,ALIS_ZFO,giris,altSinir(q));
+    await bekle(tx,"islemMesaj","Alım");
+  }catch(e){ mesaj("islemMesaj","err",esc(hataMetni(e))); }
+});
+$("satOnay").addEventListener("click", async ()=>{
+  try{
+    mesaj("islemMesaj","info","Cüzdanda onay bekleniyor…");
+    const tx=await (new Contract(A.token,ABI.erc20,signer)).approve(A.router,MaxUint256);
+    await bekle(tx,"islemMesaj","FTHM onayı");
+  }catch(e){ mesaj("islemMesaj","err",esc(hataMetni(e))); }
+});
+$("sat").addEventListener("click", async ()=>{
+  try{
+    const v=say($("satMik").value);
+    if(!(v>0)){ mesaj("islemMesaj","err","Bir miktar gir."); return; }
+    const giris=parseUnits(String(v),18);
+    mesaj("islemMesaj","info","Kota alınıyor…");
+    const q=await routerR().swap.staticCall(KEY,!ALIS_ZFO,giris,0,{from:hesap});
+    mesaj("islemMesaj","info","Satış gönderiliyor…");
+    const tx=await (new Contract(A.router,ABI.router,signer))
+      .swap(KEY,!ALIS_ZFO,giris,altSinir(q));
+    await bekle(tx,"islemMesaj","Satış");
+  }catch(e){ mesaj("islemMesaj","err",esc(hataMetni(e))); }
+});
+
+$("stOnay").addEventListener("click", async ()=>{
+  try{
+    mesaj("stakeMesaj","info","Cüzdanda onay bekleniyor…");
+    const tx=await (new Contract(A.token,ABI.erc20,signer)).approve(A.stake,MaxUint256);
+    await bekle(tx,"stakeMesaj","FTHM onayı");
+  }catch(e){ mesaj("stakeMesaj","err",esc(hataMetni(e))); }
+});
+$("st").addEventListener("click", async ()=>{
+  try{
+    const v=say($("stMik").value);
+    if(!(v>0)){ mesaj("stakeMesaj","err","Bir miktar gir."); return; }
+    const tx=await (new Contract(A.stake,ABI.stake,signer)).stake(parseUnits(String(v),18));
+    await bekle(tx,"stakeMesaj","Stake");
+  }catch(e){ mesaj("stakeMesaj","err",esc(hataMetni(e))); }
+});
+$("stCoz").addEventListener("click", async ()=>{
+  try{
+    const v=say($("stMik").value);
+    if(!(v>0)){ mesaj("stakeMesaj","err","Bir miktar gir."); return; }
+    const tx=await (new Contract(A.stake,ABI.stake,signer)).unstake(parseUnits(String(v),18));
+    await bekle(tx,"stakeMesaj","Çözme");
+  }catch(e){ mesaj("stakeMesaj","err",esc(hataMetni(e))); }
+});
+$("stAl").addEventListener("click", async ()=>{
+  try{
+    const tx=await (new Contract(A.stake,ABI.stake,signer)).claim();
+    await bekle(tx,"stakeMesaj","Ödül");
+  }catch(e){ mesaj("stakeMesaj","err",esc(hataMetni(e))); }
+});
+
+/* The page reads the chain with no wallet: the price and the depth are
+   facts about the pool, not about the visitor. */
+(async function basla(){
+  try{ USDC_OND=Number(await usdcR().decimals()); }catch(e){ USDC_OND=6; }
+  await oku();
+  setInterval(oku,30000);
+})();
+</script>
+</body>
+</html>

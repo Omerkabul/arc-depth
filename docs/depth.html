@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Arc Depth · DEPTH</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#090a0c; --panel:#12141a; --panel2:#171a21; --raise:#1d212a;
+  --line:#242934; --line2:#2f3542;
+  --tx:#e9ebf0; --dim:#8d95a4; --dim2:#646c7a;
+  --acc:#4fe3a3; --acc-dim:#1d7a58; --acc-bg:rgba(79,227,163,.10);
+  --vio:#7d8cff; --vio-bg:rgba(125,140,255,.11);
+  --warn:#ffb65c; --bad:#ff6f6f;
+  --r:15px; --r2:11px;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);
+  font:400 15px/1.55 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{max-width:1040px;margin:0 auto;padding:0 18px}
+.mono{font-family:var(--mono);font-size:.92em}
+.hid{display:none!important}
+
+header.top{border-bottom:1px solid var(--line);background:rgba(9,10,12,.9);
+  backdrop-filter:blur(10px);position:sticky;top:0;z-index:40}
+.topin{display:flex;align-items:center;gap:14px;height:62px}
+.brand{display:flex;align-items:center;gap:10px;font:700 16px Inter,sans-serif}
+.mark{width:22px;height:22px;border-radius:7px;
+  background:linear-gradient(135deg,var(--acc),var(--vio))}
+.spacer{flex:1}
+.wbtn{background:var(--panel2);border:1px solid var(--line2);color:var(--tx);
+  border-radius:var(--r2);padding:9px 14px;font:600 13.5px Inter,sans-serif;cursor:pointer}
+.wbtn:hover{background:var(--raise)}
+.wbtn.conn{border-color:var(--acc-dim)}
+.wdot{display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--acc);margin-right:7px}
+
+h1{font:800 30px/1.15 Inter,sans-serif;margin:30px 0 6px;letter-spacing:-.02em}
+h2{font:700 17px Inter,sans-serif;margin:0 0 12px}
+.sub{color:var(--dim);font-size:14.5px;margin:0 0 22px;max-width:70ch}
+
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:860px){.cols{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+
+.ca{display:flex;align-items:center;gap:10px;background:var(--panel2);
+  border:1px solid var(--line2);border-radius:var(--r2);padding:12px 14px;margin:0 0 20px}
+.ca code{font-family:var(--mono);font-size:13px;word-break:break-all;flex:1}
+.ca button{background:var(--raise);border:1px solid var(--line2);color:var(--tx);
+  border-radius:9px;padding:7px 11px;font:600 12px Inter,sans-serif;cursor:pointer;white-space:nowrap}
+
+.rows{display:flex;flex-direction:column;gap:7px;font-size:13.5px}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+  padding-bottom:7px;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0;padding-bottom:0}
+.row>span{color:var(--dim)}
+.row b{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.row .note{display:block;color:var(--dim2);font-size:11.5px;font-weight:400;margin-top:2px}
+
+.field{margin:0 0 12px}
+label{display:block;font:600 12.5px Inter,sans-serif;color:var(--dim);margin:0 0 6px}
+input{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--tx);
+  border-radius:var(--r2);padding:11px 13px;font:500 15px var(--mono)}
+input:focus{outline:none;border-color:var(--line2);background:var(--raise)}
+.hint{color:var(--dim2);font-size:12px;margin-top:6px;line-height:1.5}
+
+.btn{width:100%;background:var(--acc);color:#04120c;border:0;border-radius:var(--r2);
+  padding:12px;font:700 14.5px Inter,sans-serif;cursor:pointer}
+.btn:hover:not(:disabled){filter:brightness(1.08)}
+.btn:disabled{opacity:.38;cursor:not-allowed}
+.btn.alt{background:var(--panel2);color:var(--tx);border:1px solid var(--line2)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+
+.prog{margin:16px 0 4px}
+.track{height:7px;background:var(--raise);border-radius:99px;overflow:hidden}
+.fill{height:100%;background:linear-gradient(90deg,var(--acc-dim),var(--acc));border-radius:99px}
+.lab{display:flex;justify-content:space-between;font-size:12px;color:var(--dim2);margin-top:6px}
+
+.msg{border-radius:var(--r2);padding:11px 13px;font-size:13.5px;margin-top:12px;line-height:1.5}
+.msg.info{background:var(--vio-bg);border:1px solid rgba(125,140,255,.25)}
+.msg.ok{background:var(--acc-bg);border:1px solid rgba(79,227,163,.28)}
+.msg.err{background:rgba(255,111,111,.08);border:1px solid rgba(255,111,111,.26);color:#ffb3b3}
+.msg.uyari{background:rgba(255,182,92,.08);border:1px solid rgba(255,182,92,.28);color:#ffd9a8}
+
+.ort{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;
+  justify-content:center;z-index:60;padding:18px}
+.kutu{background:var(--panel);border:1px solid var(--line2);border-radius:var(--r);
+  width:100%;max-width:400px;padding:18px}
+.kutubas{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.kapat{background:none;border:0;color:var(--dim);font-size:24px;cursor:pointer;line-height:1}
+.cz{display:flex;align-items:center;gap:11px;width:100%;background:var(--panel2);
+  border:1px solid var(--line);border-radius:var(--r2);padding:11px 13px;margin-bottom:8px;
+  color:var(--tx);font:600 14px Inter,sans-serif;cursor:pointer;text-align:left}
+.cz:hover{background:var(--raise)}
+.cz img{width:24px;height:24px;border-radius:6px}
+
+footer{border-top:1px solid var(--line);margin-top:44px;padding:26px 0 40px;
+  color:var(--dim2);font-size:12.5px}
+.adr{display:flex;flex-direction:column;gap:5px;margin-top:10px;font-family:var(--mono);font-size:11.5px}
+.adr a{color:var(--dim)}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap topin">
+    <div class="brand"><div class="mark"></div>Arc Depth</div>
+    <div class="spacer"></div>
+    <button id="wallet" class="wbtn">Cüzdan bağla</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <h1>DEPTH</h1>
+  <p class="sub">
+    Fiyatı kimse belirlemiyor. Para girdikçe yükseliyor, token geri geldikçe
+    düşüyor. Protokol tek dolar koymadı — biriken paranın tamamı alıcıların.
+    <strong>Almak için aşağıdaki eğriyi kullan, Uniswap havuzunu değil</strong>
+    — sebebini de rakamla aşağıda gösteriyorum.
+  </p>
+
+  <div class="ca">
+    <code id="ca">—</code>
+    <button id="kopya">kopyala</button>
+    <button id="exp">explorer</button>
+  </div>
+
+  <div id="uyari"></div>
+  <div id="nerede"></div>
+  <div id="derinlik"></div>
+
+  <div class="cols">
+    <!-- ---------- al / sat ---------- -->
+    <div class="panel">
+      <h2>Al / Sat · eğri</h2>
+      <div class="rows" id="egriDurum"></div>
+
+      <div class="prog">
+        <div class="track"><div class="fill" id="ilerleme" style="width:0%"></div></div>
+        <div class="lab"><span>mezuniyete toplanan</span><span id="ilerlemeYazi">—</span></div>
+      </div>
+
+      <div class="field" style="margin-top:16px">
+        <label for="alMik">Ödenecek USDC</label>
+        <input id="alMik" placeholder="1" inputmode="decimal" spellcheck="false">
+        <div class="hint" id="alNot">—</div>
+      </div>
+      <div class="two">
+        <button class="btn alt" id="alOnay" disabled>USDC onayla</button>
+        <button class="btn" id="al" disabled>Al</button>
+      </div>
+
+      <div class="field" style="margin-top:18px">
+        <label for="satMik">Satılacak DEPTH</label>
+        <input id="satMik" placeholder="0" inputmode="decimal" spellcheck="false">
+        <div class="hint" id="satNot">—</div>
+      </div>
+      <div class="two">
+        <button class="btn alt" id="satOnay" disabled>DEPTH onayla</button>
+        <button class="btn alt" id="sat" disabled>Sat</button>
+      </div>
+      <div id="islemMesaj"></div>
+    </div>
+
+    <!-- ---------- stake ---------- -->
+    <div class="panel">
+      <h2>Stake</h2>
+      <div class="rows" id="stakeDurum"></div>
+
+      <div class="field" style="margin-top:16px">
+        <label for="stMik">DEPTH miktarı</label>
+        <input id="stMik" placeholder="0" inputmode="decimal" spellcheck="false">
+        <div class="hint">
+          Alt sınır yok — ne kadar koyarsan koy, ücretten USDC payı ve
+          havuzdan DEPTH kazanırsın. <strong>Oy kullanmak</strong> için
+          50.000 gerekiyor. Kilit yok, her an çözebilirsin.
+        </div>
+      </div>
+      <div class="two">
+        <button class="btn alt" id="stOnay" disabled>DEPTH onayla</button>
+        <button class="btn" id="st" disabled>Stake et</button>
+      </div>
+      <div class="two" style="margin-top:9px">
+        <button class="btn alt" id="stCoz" disabled>Çöz</button>
+        <button class="btn alt" id="stAl" disabled>Ödülü al</button>
+      </div>
+      <div id="stakeMesaj"></div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:16px">
+    <h2>Arz</h2>
+    <div class="rows" id="arz"></div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    Arc ana ağı, chain 5042. Hiçbir kontrat yükseltilebilir değil; sahip,
+    duraklatma, sweep ve mint fonksiyonu yok.
+    <div class="adr" id="adresler"></div>
+  </div>
+</footer>
+
+<div class="ort hid" id="cuzdanOrt">
+  <div class="kutu">
+    <div class="kutubas"><strong>Cüzdan seç</strong>
+      <button class="kapat" id="cuzdanKapat">&times;</button></div>
+    <div id="cuzdanListe"></div>
+  </div>
+</div>
+
+<script type="module">
+import { BrowserProvider, Contract, JsonRpcProvider, parseUnits, formatUnits, MaxUint256 }
+  from "https://cdn.jsdelivr.net/npm/ethers@6.13.4/+esm";
+
+const ARC = { chainId:5042, chainIdHex:"0x13b2", name:"Arc",
+  rpc:"https://rpc.mainnet.arc.io", explorer:"https://explorer.arc.io",
+  currency:{ name:"USDC", symbol:"USDC", decimals:18 } };
+
+const A = {
+  token:   "0xF67Eea3A140305dBC243e611CFa421c76F3C608B",
+  egri:    "0xFbB380caB5b5ef854971f86B614a18C61826f71D",
+  stake:   "0x590D60bf6E0B68C8254e6c55D601a3e62C3A5eFA",
+  acici:   "0x115be47006d5e0F4E1c6Ea887b626f4819a2b90C",
+  hook:    "0x9f3B302191B6ad10aA5C57390f70c293a67E0A44",
+  governor:"0xD914A0B122A85062478d16f3C24D023839b26cFe",
+  vesting: "0x913aD129094D99D2190Ec09011cCEF2a01E105C4",
+  usdc:    "0x3600000000000000000000000000000000000000",
+  /* The second curve, graduated: this is where DEPTH trades on Uniswap. */
+  egri2:   "0xe9E475993F403537766378FdA5B6B2DBeD1Bc6b0",
+  acici2:  "0xA2F188B11F561967C26B22C119fDff1406cE0964",
+  hook2:   "0x0C0a75DC29D4e862828F5f308Cb438929ECC4a44",
+  havuzId: "0xe730ab070a5d6e18e48577356ac62f770f3dfe2a5e4502a14fa0e2aecc701538",
+  poolManager:"0x8366a39CC670B4001A1121B8F6A443A643e40951",
+  /* What the opener put in, which is all the liquidity the pool has. */
+  havuzUsdc: 6000000n,
+  havuzToken: 404081632653061224489n
+};
+
+const ABI = {
+  erc20:[
+    "function balanceOf(address) view returns (uint256)",
+    "function allowance(address,address) view returns (uint256)",
+    "function approve(address,uint256) returns (bool)",
+    "function totalSupply() view returns (uint256)",
+    "function decimals() view returns (uint8)"
+  ],
+  egri:[
+    "function x() view returns (uint256)",
+    "function y() view returns (uint256)",
+    "function toplanan() view returns (uint256)",
+    "function vergi() view returns (uint256)",
+    "function ESIK() view returns (uint256)",
+    "function FANTOM() view returns (uint256)",
+    "function SANAL_TOKEN() view returns (uint256)",
+    "function mezun() view returns (bool)",
+    "function UCRET_PPM() view returns (uint256)",
+    "function alimKotasi(uint256) view returns (uint256)",
+    "function satisKotasi(uint256) view returns (uint256)",
+    "function al(uint256,uint256) returns (uint256)",
+    "function sat(uint256,uint256) returns (uint256)",
+    "function mezunEt()"
+  ],
+  stake:[
+    "function stake(uint256)",
+    "function unstake(uint256)",
+    "function claim() returns (uint256)",
+    "function stakedOf(address) view returns (uint256)",
+    "function totalStaked() view returns (uint256)",
+    "function pending(address) view returns (uint256)",
+    "function pendingToken(address) view returns (uint256)",
+    "function oyGucu(address) view returns (uint256)",
+    "function MIN_OY_GUCU() view returns (uint256)",
+    "function emisyonKalan() view returns (uint256)",
+    "function emisyonDagitilan() view returns (uint256)"
+  ]
+};
+
+const $ = (i) => document.getElementById(i);
+const read = new JsonRpcProvider(ARC.rpc,{chainId:ARC.chainId,name:"arc"},
+  {staticNetwork:true,batchMaxCount:1});
+const esc = (s) => String(s==null?"":s).replace(/[&<>"]/g,(c)=>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const kisa = (a) => String(a).slice(0,6)+"…"+String(a).slice(-4);
+const say = (v) => Number(String(v).replace(",","."));
+const satir = (l,v,not) => '<div class="row"><span>'+l+
+  (not?'<span class="note">'+not+"</span>":"")+"</span><b>"+v+"</b></div>";
+const mesaj = (el,tip,html) => { $(el).innerHTML='<div class="msg '+tip+'">'+html+"</div>"; };
+const txLink = (h) => '<a href="'+ARC.explorer+"/tx/"+h+'" target="_blank" rel="noopener">işlemi gör</a>';
+
+/* DEPTH amounts can be tiny and large in the same screen, so neither a
+   fixed decimal count nor a fixed significant count reads well alone. */
+const nd = (x,d=0) => Number(x).toLocaleString("tr-TR",{maximumFractionDigits:d});
+const nalp = (x) => {
+  const v = Number(x);
+  if (v === 0) return "0";
+  if (v >= 0.01) return nd(v,2);
+  return v.toLocaleString("tr-TR",{maximumSignificantDigits:2});
+};
+const usd = (x,d=2) => "$"+Number(x).toLocaleString("tr-TR",
+  {minimumFractionDigits:d,maximumFractionDigits:d});
+
+function hataMetni(e){
+  const s = String((e&&(e.shortMessage||e.reason||e.message))||e);
+  if (/user rejected|denied/i.test(s)) return "İşlem cüzdanda reddedildi.";
+  if (/insufficient funds/i.test(s)) return "Bakiye yetersiz — gaz için de USDC gerekiyor.";
+  if (/Kayma/i.test(s)) return "Fiyat beklediğinden fazla oynadı, işlem geri çevrildi.";
+  if (/ZatenMezun/i.test(s)) return "Eğri mezun oldu; alım satım artık Uniswap havuzunda.";
+  if (/Sifir/i.test(s)) return "Miktar çok küçük — bu tutar sıfır token alıyor.";
+  return s.length>160 ? s.slice(0,160)+"…" : s;
+}
+
+/* ---- state ------------------------------------------------------- */
+let saglayici=null, signer=null, hesap=null;
+let USDC_OND = 6, ESIK = 0n, UCRET_PPM = 10000n;
+
+/* ---- wallets: EIP-6963, then whatever injected itself ----------- */
+const cuzdanlar = new Map();
+window.addEventListener("eip6963:announceProvider",(e)=>{
+  const d = e.detail;
+  if (d && d.info && d.provider) cuzdanlar.set(d.info.uuid, d);
+});
+window.dispatchEvent(new Event("eip6963:requestProvider"));
+
+function cuzdanListesi(){
+  const el = $("cuzdanListe");
+  const hepsi = [...cuzdanlar.values()];
+  if (!hepsi.length && window.ethereum) {
+    hepsi.push({ info:{ name:"Tarayıcı cüzdanı", icon:"" }, provider:window.ethereum });
+  }
+  if (!hepsi.length) {
+    el.innerHTML = '<div class="msg err">Cüzdan bulunamadı. MetaMask gibi bir '+
+      'cüzdan kurup sayfayı yenile.</div>';
+    return;
+  }
+  el.innerHTML = hepsi.map((c,i)=>
+    '<button class="cz" data-i="'+i+'">'+
+    (c.info.icon?'<img src="'+esc(c.info.icon)+'" alt="">':"")+
+    esc(c.info.name)+"</button>").join("");
+  for (const b of el.querySelectorAll(".cz")) {
+    b.addEventListener("click", async ()=>{
+      kapa("cuzdanOrt");
+      try { await bagla(hepsi[Number(b.dataset.i)].provider); }
+      catch(e){ mesaj("islemMesaj","err",esc(hataMetni(e))); }
+    });
+  }
+}
+const ac = (id)=>$(id).classList.remove("hid");
+const kapa = (id)=>$(id).classList.add("hid");
+$("cuzdanKapat").addEventListener("click",()=>kapa("cuzdanOrt"));
+$("cuzdanOrt").addEventListener("click",(e)=>{ if(e.target===$("cuzdanOrt")) kapa("cuzdanOrt"); });
+
+async function bagla(eip1193){
+  await eip1193.request({ method:"eth_requestAccounts" });
+  const bp = new BrowserProvider(eip1193);
+  const net = await bp.getNetwork();
+  if (Number(net.chainId) !== ARC.chainId) {
+    try { await eip1193.request({method:"wallet_switchEthereumChain",
+      params:[{chainId:ARC.chainIdHex}]}); }
+    catch(sw){
+      if (sw && (sw.code===4902 || /Unrecognized chain|Unsupported chain/i.test(String(sw.message)))) {
+        await eip1193.request({method:"wallet_addEthereumChain",params:[{
+          chainId:ARC.chainIdHex, chainName:ARC.name, rpcUrls:[ARC.rpc],
+          nativeCurrency:ARC.currency, blockExplorerUrls:[ARC.explorer]
+        }]});
+      } else throw sw;
+    }
+  }
+  saglayici = eip1193;
+  signer = await (new BrowserProvider(eip1193)).getSigner();
+  hesap = await signer.getAddress();
+  $("wallet").innerHTML = '<span class="wdot"></span>'+kisa(hesap);
+  $("wallet").classList.add("conn");
+  for (const b of ["alOnay","al","satOnay","sat","stOnay","st","stCoz","stAl"])
+    $(b).disabled = false;
+  if (eip1193.on) {
+    eip1193.on("accountsChanged",()=>location.reload());
+    eip1193.on("chainChanged",()=>location.reload());
+  }
+  oku();
+}
+$("wallet").addEventListener("click",()=>{
+  if (hesap) { navigator.clipboard && navigator.clipboard.writeText(hesap); return; }
+  cuzdanListesi(); ac("cuzdanOrt");
+});
+
+/* ---- the contract address, which is what people come for -------- */
+$("ca").textContent = A.token;
+$("exp").addEventListener("click",()=>
+  window.open(ARC.explorer+"/address/"+A.token,"_blank","noopener"));
+$("kopya").addEventListener("click", async ()=>{
+  try { await navigator.clipboard.writeText(A.token); $("kopya").textContent="kopyalandı"; }
+  catch(e){ $("kopya").textContent="kopyalanamadı"; }
+  setTimeout(()=>{ $("kopya").textContent="kopyala"; },1600);
+});
+
+$("adresler").innerHTML = [
+  ["token",A.token],["eğri",A.egri],["stake",A.stake],
+  ["havuz açıcı",A.acici],["hook",A.hook],["yönetişim",A.governor],["vesting",A.vesting],
+  ["canlı havuz · açıcı",A.acici2],["canlı havuz · hook",A.hook2],["canlı havuz · eğri",A.egri2]
+].map(([ad,adr])=>'<a href="'+ARC.explorer+"/address/"+adr+
+  '" target="_blank" rel="noopener">'+ad+" · "+adr+"</a>").join("");
+
+/* ---- reads ------------------------------------------------------- */
+const egriR = () => new Contract(A.egri, ABI.egri, read);
+const stakeR = () => new Contract(A.stake, ABI.stake, read);
+const tokR = () => new Contract(A.token, ABI.erc20, read);
+const usdcR = () => new Contract(A.usdc, ABI.erc20, read);
+
+async function oku(){
+  try{
+    const e = egriR();
+    const [xi, yi, toplanan, vergi, esik, mezunMu, ucret] = await Promise.all([
+      e.x(), e.y(), e.toplanan(), e.vergi(), e.ESIK(), e.mezun(), e.UCRET_PPM()
+    ]);
+    ESIK = esik; UCRET_PPM = ucret;
+    const arz = await tokR().totalSupply();
+
+    /* price = x/y as a ratio of raw amounts: 6-decimal quote over an
+       18-decimal token. Never a scaled constant — that assumption is what
+       cost the previous token 300,000,000. */
+    const fiyat = (Number(xi)/1e6) / (Number(yi)/1e18);
+    const mcap = fiyat * (Number(arz)/1e18);
+
+    let benUsdc=0n, benTok=0n;
+    if (hesap) {
+      [benUsdc, benTok] = await Promise.all([
+        usdcR().balanceOf(hesap), tokR().balanceOf(hesap)
+      ]);
+    }
+
+    if (mezunMu) {
+      mesaj("uyari","ok","<strong>Eğri mezun oldu.</strong> Alım satım artık "+
+        "kilitli Uniswap havuzunda. Bu sayfadaki al/sat kapandı.");
+      for (const b of ["alOnay","al","satOnay","sat"]) $(b).disabled = true;
+    } else {
+      mesaj("uyari","info","DEPTH bir Uniswap v4 havuzunda <em>listeli</em> — "+
+        "kalıcı kilitli, kimse likiditeyi çekemez, ve fiyat sitelerinde "+
+        "oradan görünüyor. Ama içinde "+usd(Number(A.havuzUsdc)/1e6,2)+
+        " var, yani <strong>alım için yer orası değil</strong>; "+
+        '<a href="'+ARC.explorer+"/address/"+A.acici2+'" target="_blank" '+
+        'rel="noopener">havuzu gör</a>.<br>'+
+        "Aşağıdaki eğri <b>"+usd(Number(esik)/1e6,0)+"</b> topladığında mezun "+
+        "olup kendi kalıcı havuzunu <em>o derinlikte</em> açacak — ve o parayı "+
+        "biz değil alıcılar koyuyor. Şu an "+usd(Number(toplanan)/1e6,2)+
+        " toplandı.");
+    }
+
+    $("egriDurum").innerHTML =
+      satir("fiyat", usd(fiyat, 8).replace("$","$ "), "eğrinin kendisi belirliyor, biz değil") +
+      satir("piyasa değeri", usd(mcap, 0)) +
+      satir("toplanan", usd(Number(toplanan)/1e6, 2), "tamamı alıcı parası — protokol $0 koydu") +
+      satir("havuza ayrılan ücret", usd(Number(vergi)/1e6, 4)) +
+      satir("işlem ücreti", "%"+(Number(ucret)/10000).toFixed(2),
+        "%0,30 kurucu · %0,30 stake · %0,40 havuz derinliği") +
+      (hesap ? satir("cüzdanındaki USDC", usd(Number(benUsdc)/1e6, 2)) +
+               satir("cüzdanındaki DEPTH", nalp(Number(benTok)/1e18)) : "");
+
+    const oran = Number(toplanan) / Number(esik);
+    $("ilerleme").style.width = Math.min(100, oran*100).toFixed(2)+"%";
+    $("ilerlemeYazi").textContent = usd(Number(toplanan)/1e6,2)+" / "+usd(Number(esik)/1e6,0);
+
+    await neredeAlOku();
+    await derinlikOku(fiyat, Number(arz)/1e18);
+    await stakeOku();
+    await arzOku(arz);
+    await onizle();
+  }catch(err){
+    mesaj("islemMesaj","err","Zincire ulaşılamadı: "+esc(hataMetni(err)));
+  }
+}
+
+/* The number a price site cannot show you.
+ *
+ * Exit liquidity is what the pool holds plus what the first curve still
+ * holds, and it is not the market cap. Selling into a constant-product
+ * pool pays out of its reserves, so a sale larger than those reserves
+ * cannot be paid however the price is quoted. This prints what each size
+ * would actually return. */
+/* Where to buy, with the arithmetic rather than a recommendation.
+ *
+ * Slippage is the trade divided by the money the venue prices against. The
+ * pool prices against what is in it. The curve prices against its phantom
+ * reserve plus what it has collected, and the phantom part is money nobody
+ * deposited — which is exactly what it is for. Same formula, a very
+ * different denominator. */
+async function neredeAlOku(){
+  const e = egriR();
+  const [xi, fantom, toplanan] = await Promise.all([e.x(), e.FANTOM(), e.toplanan()]);
+  const X = Number(xi)/1e6;
+  const U = Number(A.havuzUsdc)/1e6;
+  const kayma = (bolen, d) => (d/bolen)*100;
+
+  const sat = (d) =>
+    "<tr><td>"+usd(d,0)+"</td><td>%"+nd(kayma(U,d),1)+
+    '</td><td><strong style="color:var(--acc)">%'+nd(kayma(X,d),2)+"</strong></td></tr>";
+
+  $("nerede").innerHTML =
+    '<div class="msg ok" style="margin-bottom:20px">'+
+    "<strong>Almak için eğriyi kullan.</strong> Kayma, işlem tutarının "+
+    "fiyatlamaya esas olan paraya bölümü. Havuzda o para <strong>"+usd(U,2)+
+    "</strong>; eğride <strong>"+usd(X,2)+"</strong> — ve bunun "+
+    usd(Number(fantom)/1e6,0)+"'ı <em>fantom</em>, kimse yatırmadı. "+
+    "Aynı formül, <strong>"+nd(X/U)+" kat</strong> büyük bölen."+
+    '<table style="width:100%;margin-top:12px;border-collapse:collapse;font-size:12.5px">'+
+    '<tr style="color:var(--dim)"><th style="text-align:left">alım</th>'+
+    '<th style="text-align:left">havuzda kayma</th>'+
+    '<th style="text-align:left">eğride kayma</th></tr>'+
+    [1,10,100,500].map(sat).join("")+
+    "</table>"+
+    '<div style="margin-top:10px;color:var(--dim)">'+
+    "Fantom rezerv fiyatı düşük kaymayla tutuyor ama <strong>çekilemez</strong> — "+
+    "çekilebilseydi var olmayan para ödenmiş olurdu. O yüzden alım eğride ucuz, "+
+    "satış ise her iki yerde de yatırılmış parayla sınırlı."+
+    "</div></div>";
+}
+
+async function derinlikOku(fiyat, arz){
+  const U = Number(A.havuzUsdc)/1e6;
+  const T = Number(A.havuzToken)/1e18;
+  let egri1 = 0;
+  try { egri1 = Number(await egriR().toplanan())/1e6; } catch(e){ egri1 = 0; }
+  const cikis = U + egri1;
+  const mcap = fiyat * arz;
+  const kat = cikis > 0 ? mcap/cikis : 0;
+
+  const satir2 = (miktar) => {
+    const deger = miktar * fiyat;
+    const cikan = (U * miktar) / (T + miktar) * 0.995;   // hook takes 0.50%
+    const kayip = deger > 0 ? (1 - cikan/deger)*100 : 0;
+    return "<tr><td>"+nd(miktar)+"</td><td>"+usd(deger,2)+"</td><td><strong>"+
+      usd(cikan,4)+"</strong></td><td>%"+nd(kayip,1)+"</td></tr>";
+  };
+
+  $("derinlik").innerHTML =
+    '<div class="msg err" style="margin-bottom:20px">'+
+    "<strong>Satmak istediğinde ne alacağını buradan oku.</strong><br>"+
+    "Havuzda <strong>"+usd(U,2)+"</strong>, eğride <strong>"+usd(egri1,2)+
+    "</strong> var — çıkarılabilecek paranın tamamı <strong>"+usd(cikis,2)+
+    "</strong>. Piyasa değeri "+usd(mcap,0)+" görünüyor; aradaki fark <strong>"+
+    nd(kat)+" kat</strong>. Havuz içinde olmayan parayı ödeyemez, fiyat ne "+
+    "gösterirse göstersin."+
+    '<table style="width:100%;margin-top:12px;border-collapse:collapse;font-size:12.5px">'+
+    '<tr style="color:var(--dim)"><th style="text-align:left">satılan DEPTH</th>'+
+    '<th style="text-align:left">fiyata göre</th>'+
+    '<th style="text-align:left">gerçekte alınan</th>'+
+    '<th style="text-align:left">kayıp</th></tr>'+
+    [10000,100000,1000000,10000000].map(satir2).join("")+
+    "</table>"+
+    '<div style="margin-top:10px;color:var(--dim)">'+
+    "Küçük satış çalışır, büyük satış çalışmaz. Derinlik yalnız artabilir: "+
+    "her alımın USDC'si havuzda kalıyor ve ücretin %0,20'si pozisyona geri "+
+    "yatırılıyor — ama bugünkü rakam bu."+
+    "</div></div>";
+}
+
+async function stakeOku(){
+  const s = stakeR();
+  const [toplam, taban, kalan, dagitilan] = await Promise.all([
+    s.totalStaked(), s.MIN_OY_GUCU(), s.emisyonKalan(), s.emisyonDagitilan()
+  ]);
+  let benim=0n, odulUsdc=0n, odulTok=0n, oy=0n;
+  if (hesap) {
+    [benim, odulUsdc, odulTok, oy] = await Promise.all([
+      s.stakedOf(hesap), s.pending(hesap), s.pendingToken(hesap), s.oyGucu(hesap)
+    ]);
+  }
+  const t = Number(toplam)/1e18, b = Number(benim)/1e18, tb = Number(taban)/1e18;
+  $("stakeDurum").innerHTML =
+    satir("toplam stake", t>0 ? nalp(t)+" DEPTH" : "0 — henüz kimse stake etmedi") +
+    satir("emisyon havuzu", nd(Number(kalan)/1e18)+" DEPTH",
+      "30 yıl, 10 yılda yarılanır · dağıtılan "+nd(Number(dagitilan)/1e18)) +
+    satir("oy kullanma tabanı", nd(tb)+" DEPTH") +
+    (hesap
+      ? satir("stake ettiğin", nalp(b)) +
+        satir("oy kullanabilir misin", Number(oy)>0
+          ? "evet · tabanın "+nalp(b-tb)+" üstünde"
+          : "hayır · "+nalp(Math.max(0,tb-b))+" DEPTH daha gerekiyor") +
+        satir("USDC ödülün", usd(Number(odulUsdc)/1e6, 6)) +
+        satir("DEPTH ödülün", nalp(Number(odulTok)/1e18))
+      : satir("cüzdan", "bağlı değil"));
+}
+
+async function arzOku(arz){
+  const t = tokR();
+  const [egriB, stakeB, aciciB, vestB] = await Promise.all([
+    t.balanceOf(A.egri), t.balanceOf(A.stake), t.balanceOf(A.acici), t.balanceOf(A.vesting)
+  ]);
+  const m = (x) => nd(Number(x)/1e18);
+  $("arz").innerHTML =
+    satir("toplam arz", m(arz), "mint fonksiyonu yok — sadece azalabilir") +
+    satir("eğride, satılmayı bekleyen", m(egriB)) +
+    satir("stake emisyon havuzunda", m(stakeB)) +
+    satir("mezuniyet havuzu için", m(aciciB)) +
+    satir("vesting (kurucu, 12 ay)", m(vestB));
+}
+
+/* ---- quotes ------------------------------------------------------ */
+async function onizle(){
+  try{
+    const e = egriR();
+    const a = say($("alMik").value);
+    if (a > 0) {
+      const giris = parseUnits(String(a), USDC_OND);
+      const net = giris - (giris*UCRET_PPM)/1000000n;
+      const q = await e.alimKotasi(net);
+      $("alNot").innerHTML = "≈ <strong>"+nd(Number(q)/1e18)+" DEPTH</strong> alırsın. "+
+        "Ücret "+usd(Number(giris-net)/1e6,4)+" — bunun %30'u kurucuya, %30'u stake'e, "+
+        "%40'ı havuz derinliğine.";
+    } else {
+      $("alNot").textContent = "Bir tutar gir, ne kadar token alacağını hesaplayayım.";
+    }
+    const s = say($("satMik").value);
+    if (s > 0) {
+      const q = await e.satisKotasi(parseUnits(String(s), 18));
+      const net = q - (q*UCRET_PPM)/1000000n;
+      $("satNot").innerHTML = "≈ <strong>"+usd(Number(net)/1e6,6)+"</strong> alırsın "+
+        "(ücret düşülmüş).";
+    } else {
+      $("satNot").textContent = "Satacağın DEPTH miktarını gir.";
+    }
+  }catch(err){ /* a quote that cannot be fetched is not worth an error box */ }
+}
+$("alMik").addEventListener("input", onizle);
+$("satMik").addEventListener("input", onizle);
+
+/* ---- writes ------------------------------------------------------ */
+const bekle = async (tx, el, ad) => {
+  mesaj(el,"info",ad+" gönderildi, onay bekleniyor… "+txLink(tx.hash));
+  await tx.wait();
+  mesaj(el,"ok","<strong>"+ad+" tamam.</strong> "+txLink(tx.hash));
+  await oku();
+};
+
+$("alOnay").addEventListener("click", async ()=>{
+  try{
+    mesaj("islemMesaj","info","Cüzdanda onay bekleniyor…");
+    const tx = await (new Contract(A.usdc, ABI.erc20, signer)).approve(A.egri, MaxUint256);
+    await bekle(tx,"islemMesaj","USDC onayı");
+  }catch(e){ mesaj("islemMesaj","err",esc(hataMetni(e))); }
+});
+$("al").addEventListener("click", async ()=>{
+  try{
+    const v = say($("alMik").value);
+    if (!(v>0)) { mesaj("islemMesaj","err","Bir tutar gir."); return; }
+    mesaj("islemMesaj","info","Alım gönderiliyor…");
+    const tx = await (new Contract(A.egri, ABI.egri, signer))
+      .al(parseUnits(String(v),USDC_OND), 0);
+    await bekle(tx,"islemMesaj","Alım");
+  }catch(e){ mesaj("islemMesaj","err",esc(hataMetni(e))); }
+});
+$("satOnay").addEventListener("click", async ()=>{
+  try{
+    mesaj("islemMesaj","info","Cüzdanda onay bekleniyor…");
+    const tx = await (new Contract(A.token, ABI.erc20, signer)).approve(A.egri, MaxUint256);
+    await bekle(tx,"islemMesaj","DEPTH onayı");
+  }catch(e){ mesaj("islemMesaj","err",esc(hataMetni(e))); }
+});
+$("sat").addEventListener("click", async ()=>{
+  try{
+    const v = say($("satMik").value);
+    if (!(v>0)) { mesaj("islemMesaj","err","Bir miktar gir."); return; }
+    mesaj("islemMesaj","info","Satış gönderiliyor…");
+    const tx = await (new Contract(A.egri, ABI.egri, signer))
+      .sat(parseUnits(String(v),18), 0);
+    await bekle(tx,"islemMesaj","Satış");
+  }catch(e){ mesaj("islemMesaj","err",esc(hataMetni(e))); }
+});
+
+$("stOnay").addEventListener("click", async ()=>{
+  try{
+    mesaj("stakeMesaj","info","Cüzdanda onay bekleniyor…");
+    const tx = await (new Contract(A.token, ABI.erc20, signer)).approve(A.stake, MaxUint256);
+    await bekle(tx,"stakeMesaj","DEPTH onayı");
+  }catch(e){ mesaj("stakeMesaj","err",esc(hataMetni(e))); }
+});
+$("st").addEventListener("click", async ()=>{
+  try{
+    const v = say($("stMik").value);
+    if (!(v>0)) { mesaj("stakeMesaj","err","Bir miktar gir."); return; }
+    const tx = await (new Contract(A.stake, ABI.stake, signer)).stake(parseUnits(String(v),18));
+    await bekle(tx,"stakeMesaj","Stake");
+  }catch(e){ mesaj("stakeMesaj","err",esc(hataMetni(e))); }
+});
+$("stCoz").addEventListener("click", async ()=>{
+  try{
+    const v = say($("stMik").value);
+    if (!(v>0)) { mesaj("stakeMesaj","err","Bir miktar gir."); return; }
+    const tx = await (new Contract(A.stake, ABI.stake, signer)).unstake(parseUnits(String(v),18));
+    await bekle(tx,"stakeMesaj","Çözme");
+  }catch(e){ mesaj("stakeMesaj","err",esc(hataMetni(e))); }
+});
+$("stAl").addEventListener("click", async ()=>{
+  try{
+    const tx = await (new Contract(A.stake, ABI.stake, signer)).claim();
+    await bekle(tx,"stakeMesaj","Ödül");
+  }catch(e){ mesaj("stakeMesaj","err",esc(hataMetni(e))); }
+});
+
+/* The page reads the chain with no wallet: the price and the progress to
+   graduation are facts about the contract, not about the visitor. */
+(async function basla(){
+  try { USDC_OND = Number(await usdcR().decimals()); } catch(e){ USDC_OND = 6; }
+  await oku();
+  setInterval(oku, 30000);
+})();
+</script>
+</body>
+</html>
